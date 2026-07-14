@@ -1,0 +1,86 @@
+# config.yaml
+# Trader-Resp — RSI Mean-Reversion Screener + Backtest
+#
+# Every threshold in STRATEGY.md / CLAUDE-CODE-PROMPT.md lives here as a named
+# key. No magic numbers in code. If a value changes, it changes here only.
+#
+# Keys marked "STAGE n" note which build stage first consumes them, so it's
+# obvious which knobs are wired up vs. still just documented for later.
+
+universe:
+  # STAGE 1
+  index_membership: ["SPY", "QQQ"]        # must be a constituent of one of these
+  market_cap_shares_min: 10_000_000_000   # $10B
+  market_cap_shares_max: 499_000_000_000  # $499B (Mag7 rule cutoff)
+  market_cap_leap_min: 500_000_000_000    # $500B+ only — disqualifies NFLX
+  price_min: 10                           # > $10
+  avg_volume_min: 2_000_000               # > 2M shares/day
+  # Not specified in STRATEGY.md — averaging window for the volume filter.
+  # Placeholder only; do not consume until confirmed. See Stage 1 gate note.
+  avg_volume_lookback_days: null          # TBD — ask before Stage 1 filter runs
+
+resampling:
+  # STAGE 0
+  bar_size_days: 3                        # 3 trading days per bar, non-overlapping
+  # Anchor rule: groups are built from the start of the fetched daily history,
+  # i.e. bar 1 = trading days [0,1,2], bar 2 = [3,4,5], etc. Documented in
+  # screener/resample.py. This is the exact thing the MSFT/HIMS eyeball gate
+  # is meant to catch if TradingView anchors differently.
+
+indicators:
+  # STAGE 0
+  rsi_period: 3                           # RSI(3) on the 3-day chart — entry/exit signal
+  rsi_method: "wilder"                    # Wilder's smoothing (RMA) — matches TradingView default
+  sma_trend_period: 200                   # SMA(200) on the daily — trend filter
+  atr_period: 14                          # ATR(14) — tranche ladder spacing
+
+entry:
+  # STAGE 2 (documented now per build spec, not consumed until Stage 2)
+  rsi3_buy_threshold: 35                  # RSI(3) < 35 triggers a look
+  rsi3_grade_a_threshold: 30              # RSI(3) < 30 -> Grade A candidate
+  # "weekly chart not making lower lows" has no quantified lookback window in
+  # STRATEGY.md. Not implemented yet — will ask before Stage 2 grading is built.
+  weekly_lower_low_lookback_weeks: null   # TBD — ask before Stage 2
+
+exit:
+  # STAGE 3
+  rsi3_euphoria_threshold: 80             # Trigger 1: RSI(3) >= 80 -> SELL
+  rsi3_momentum_touch_threshold: 70       # Trigger 2 arm: RSI(3) touches >= 70
+  rsi3_momentum_cross_below: 60           # Trigger 2 fire: then crosses back below 60
+  exit_trim_position_pct_of_book: 0.25    # position > 25% of book ->
+  exit_trim_target_pct_of_book: 0.20      #   trim to 20%, proceeds to cash
+  exit_first_signal_sell_fraction: 0.50   # 1st exit signal within cap: sell 50%
+
+sizing:
+  # STAGE 2/3
+  max_slots: 6                            # 5 core + 1 flex
+  max_position_pct_of_book: 0.25          # shares + LEAPs on same underlying = one bucket
+  max_tranches_per_name: 3                # hard cap, no exceptions
+  tranche_spacing_atr_multiple: 1.5       # 1.5 x ATR(14) below previous entry
+  min_cash_floor_pct: 0.10                # minimum cash held
+
+leap:
+  # STAGE 2/3 (separate rule set from equities)
+  market_cap_min: 500_000_000_000         # $500B+ underlying only
+  delta_min: 0.70                         # deep ITM
+  delta_max: 0.80
+  expiry_min_months: 18                   # at entry
+  force_close_months_to_expiry: 6         # regardless of P/L
+  iv_rank_skip_threshold: 60              # skip if IV rank > 60 -> buy shares instead
+  sleeve_cap_pct_of_book: 0.25            # delta-adjusted notional
+
+circuit_breakers:
+  # STAGE 2/3
+  max_new_positions_per_week: 2
+  account_drawdown_halt_pct: 0.30         # -30% -> halt new entries
+  halt_duration_days: 30
+
+backtest:
+  # STAGE 6
+  years: 5
+  slippage_pct: 0.001                     # 0.1%
+
+data:
+  # STAGE 0
+  cache_dir: "data_cache"
+  cache_format: "parquet"
