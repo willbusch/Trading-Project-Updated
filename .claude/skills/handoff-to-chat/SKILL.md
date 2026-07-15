@@ -11,19 +11,43 @@ Produce ONE self-contained block the user pastes into Claude chat. Chat has NO m
 - Read HANDOFF.md (repo root). Top entry's LAST_COMMIT: <hash> = last handoff point.
 - If HANDOFF.md doesn't exist, create it and diff the last 20 commits.
 
-## Step 2 — Pull strategy metrics
+## Step 2 — Ask before assembling (every run)
+Use the AskUserQuestion tool to pop up two questions. Always ask both, every
+time this skill runs — priority and tone can shift session to session (after
+a backtest, a drawdown, a new signal idea), so never silently reuse a past
+answer or guess.
+
+1. **Priority** — "What should chat prioritize improving first?"
+   Options: Win rate · Avg R / payoff ratio · Max drawdown / risk ·
+   Whatever's weakest (let chat decide). The tool's built-in "Other" option
+   covers anything more specific (e.g. "the LEAP sleeve specifically").
+
+2. **Pushback level** — "How hard should chat push back on weak points?"
+   Options:
+   - **Gentle** — soft suggestions, mostly validating.
+   - **Firm but balanced** — direct, names weaknesses plainly, no
+     sugarcoating, but not harsh.
+   - **Brutal / no filter** — tell it bluntly, accuracy over feelings.
+
+Capture the two answers as `[PRIORITY]` and `[PUSHBACK LEVEL]` for Step 5.
+
+If `AskUserQuestion` is unavailable in whatever context is running this
+skill, fall back to "whatever's weakest" and "firm but balanced" and say so
+in the output — but this should be rare; always prefer asking.
+
+## Step 3 — Pull strategy metrics
 - From the most recent backtest artifact/output in this session, extract: win rate, avg R per trade, max drawdown, # of trades. If a metric is missing, write "N/A."
 - From config.yaml and STRATEGY.md, extract: timeframe, stop logic, entry rules in effect.
 - If no backtest ran this session, write "No new backtest this session — metrics unchanged from last handoff."
 
-## Step 3 — Scan changes since the anchor
+## Step 4 — Scan changes since the anchor
 - git log --oneline <anchor>..HEAD
 - git diff --stat <anchor>..HEAD
 - git diff <anchor>..HEAD — READ the changes, understand intent
 - git status + git diff — uncommitted/half-finished work
 - Map changes against PLAN.md / ROADMAP.md
 
-## Step 4 — Assemble the paste block (output EXACTLY this, filled in)
+## Step 5 — Assemble the paste block (output EXACTLY this, filled in)
 
 ```
 # HANDOFF TO CHAT — [date/time]
@@ -57,7 +81,7 @@ Your job: make this strategy better from where it stands. "Better" = higher
 win rate, higher % won per trade, better avg R, lower risk/drawdown.
 
 Rules for your response:
-- Prioritize improving [PRIORITY — filled from user's standing preference] first.
+- Prioritize improving [PRIORITY] first.
 - Push back at a [PUSHBACK LEVEL] level — tell me what's weak, don't just agree.
 - Give me CONCEPTUAL suggestions first. I approve before anything becomes
   backtest-ready rules. Do NOT hand me code or exact parameters yet.
@@ -67,7 +91,7 @@ Rules for your response:
   backup list.
 ```
 
-## Step 5 — Log the anchor
+## Step 6 — Log the anchor
 Prepend to HANDOFF.md:
 ```
 ---
@@ -81,5 +105,6 @@ LAST_COMMIT: <current HEAD hash>
 - Output the paste block and nothing else the user has to edit.
 - Translate code → plain trading/strategy language.
 - Never dump raw diffs. Summarize intent.
-- Fill [PRIORITY] and [PUSHBACK LEVEL] from the user's standing preferences; if unknown, use "whatever's weakest" and "firm but balanced."
+- [PRIORITY] and [PUSHBACK LEVEL] always come from the live Step 2 pop-up —
+  never silently defaulted or reused from a previous run.
 - Keep the whole block tight enough to paste cleanly.
