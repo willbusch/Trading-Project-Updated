@@ -1,0 +1,1 @@
+- To sync progress to Claude chat, use the handoff-to-chat skill.
