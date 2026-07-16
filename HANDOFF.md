@@ -1,4 +1,11 @@
 ---
+## 2026-07-15 — HANDOFF
+LAST_COMMIT: b61d956
+SNAPSHOT: Stage 0 foundation unchanged (built/tested); this session added two project-management skills (handoff-to-chat v3 facts-only, trading-project-review corrected + run once). yfinance still network-blocked.
+NEXT: Confirm the Stage 0 RSI(3)/3-day values against TradingView for MSFT and HIMS.
+---
+
+---
 ## 2026-07-15
 LAST_COMMIT: 87b55bb
 
