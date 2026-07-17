@@ -1,4 +1,21 @@
 ---
+## 2026-07-15 — EXECUTED (from chat)
+DID: Switched RSI(3)->RSI(14) on 3-day bars (config.yaml rsi_period),
+made Robinhood MCP the sole data source (yfinance removed entirely from
+screener/data.py and requirements.txt, no fallback), resolved two config
+keys (avg_volume_lookback_days removed, weekly_lower_low_lookback_weeks
+set to 8). Computed and presented RSI(14) values for MSFT/HIMS for
+TradingView cross-check (not yet confirmed). Proposed re-tuned
+entry/exit thresholds with 5-year signal-frequency evidence (old
+euphoria threshold RSI>=80 was firing 0.2x/year for MSFT - functionally
+dead) - proposal only, NOT written to config pending confirmation.
+Added an RSI(14) unit test. docs/PLAN.md updated; STRATEGY.md/GOAL.md
+deliberately left untouched (still describe RSI(3), flagged as open
+drift). No Stage 1 work. 11/11 tests passing.
+LAST_COMMIT: 9b41a7d
+---
+
+---
 ## 2026-07-15 — HANDOFF
 LAST_COMMIT: b61d956
 SNAPSHOT: Stage 0 foundation unchanged (built/tested); this session added two project-management skills (handoff-to-chat v3 facts-only, trading-project-review corrected + run once). yfinance still network-blocked.
