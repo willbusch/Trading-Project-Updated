@@ -1,4 +1,11 @@
 ---
+## 2026-07-15 — HANDOFF
+LAST_COMMIT: 29c651b
+SNAPSHOT: RSI(14)/Robinhood-only switch complete and unchanged since last handoff; RSI(14) values and threshold re-tune still awaiting confirmation.
+NEXT: Confirm RSI(14) vs TradingView and confirm/reject the proposed threshold re-tune.
+---
+
+---
 ## 2026-07-15 — EXECUTED (from chat)
 DID: Switched RSI(3)->RSI(14) on 3-day bars (config.yaml rsi_period),
 made Robinhood MCP the sole data source (yfinance removed entirely from
