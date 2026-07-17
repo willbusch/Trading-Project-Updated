@@ -35,6 +35,29 @@ def test_rsi_matches_hand_computed_wilder_reference():
     assert result.iloc[4] == pytest.approx(83.333, abs=0.01)
 
 
+def test_rsi_period_14_matches_independent_reference():
+    # Cross-checked against an independent, from-scratch Wilder RSI(14)
+    # implementation (not screener/indicators.py) on this synthetic series:
+    #   closes = [44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42,
+    #             45.84, 46.08, 45.89, 46.03, 45.61, 46.28, 46.28, 46.00]
+    #   seed (period=14) at index 14: avg_gain=0.238571, avg_loss=0.100000
+    #     -> RS=2.38571 -> RSI=70.4641
+    #   index 15: avg_gain=(0.238571*13+gain[14])/14=0.221531,
+    #             avg_loss=(0.100000*13+loss[14])/14=0.112857
+    #     -> RS=1.96269 -> RSI=66.2496
+    close = pd.Series(
+        [44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84,
+         46.08, 45.89, 46.03, 45.61, 46.28, 46.28, 46.00],
+        index=pd.RangeIndex(16),
+    )
+    result = rsi(close, period=14)
+
+    for i in range(14):
+        assert pd.isna(result.iloc[i])
+    assert result.iloc[14] == pytest.approx(70.4641, abs=0.001)
+    assert result.iloc[15] == pytest.approx(66.2496, abs=0.001)
+
+
 def test_rsi_all_gains_approaches_100():
     close = pd.Series(range(1, 20), index=pd.RangeIndex(19))  # strictly increasing
     result = rsi(close, period=3)

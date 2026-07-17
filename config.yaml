@@ -15,9 +15,6 @@ universe:
   market_cap_leap_min: 500_000_000_000    # $500B+ only — disqualifies NFLX
   price_min: 10                           # > $10
   avg_volume_min: 2_000_000               # > 2M shares/day
-  # Not specified in STRATEGY.md — averaging window for the volume filter.
-  # Placeholder only; do not consume until confirmed. See Stage 1 gate note.
-  avg_volume_lookback_days: null          # TBD — ask before Stage 1 filter runs
 
 resampling:
   # STAGE 0
@@ -29,21 +26,28 @@ resampling:
 
 indicators:
   # STAGE 0
-  rsi_period: 3                           # RSI(3) on the 3-day chart — entry/exit signal
+  rsi_period: 14                          # RSI(14) on the 3-day chart — entry/exit signal.
+                                           # Switched from RSI(3) — see docs/PLAN.md for the
+                                           # validation gate and threshold re-tune evidence.
   rsi_method: "wilder"                    # Wilder's smoothing (RMA) — matches TradingView default
   sma_trend_period: 200                   # SMA(200) on the daily — trend filter
   atr_period: 14                          # ATR(14) — tranche ladder spacing
 
 entry:
   # STAGE 2 (documented now per build spec, not consumed until Stage 2)
+  # NOTE: these threshold values were calibrated for RSI(3) and have NOT yet
+  # been updated for RSI(14) — the "rsi3_" key names are a leftover from
+  # that period, kept intentionally rather than renamed until the actual
+  # numbers are re-tuned and confirmed (see docs/PLAN.md — the RSI(14)
+  # threshold proposal is presented but deliberately not committed here).
   rsi3_buy_threshold: 35                  # RSI(3) < 35 triggers a look
   rsi3_grade_a_threshold: 30              # RSI(3) < 30 -> Grade A candidate
-  # "weekly chart not making lower lows" has no quantified lookback window in
-  # STRATEGY.md. Not implemented yet — will ask before Stage 2 grading is built.
-  weekly_lower_low_lookback_weeks: null   # TBD — ask before Stage 2
+  weekly_lower_low_lookback_weeks: 8      # weekly chart "not making lower lows" lookback window
 
 exit:
   # STAGE 3
+  # Same caveat as entry: rsi3_* values below are still the RSI(3)-era
+  # numbers, pending confirmation of the RSI(14) re-tune proposal.
   rsi3_euphoria_threshold: 80             # Trigger 1: RSI(3) >= 80 -> SELL
   rsi3_momentum_touch_threshold: 70       # Trigger 2 arm: RSI(3) touches >= 70
   rsi3_momentum_cross_below: 60           # Trigger 2 fire: then crosses back below 60
@@ -82,5 +86,8 @@ backtest:
 
 data:
   # STAGE 0
+  source: "robinhood_mcp"                 # sole data source — no yfinance fallback.
+                                           # Cache is populated by the agent via the
+                                           # Robinhood MCP tool; see screener/data.py.
   cache_dir: "data_cache"
   cache_format: "parquet"

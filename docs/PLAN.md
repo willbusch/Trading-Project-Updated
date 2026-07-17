@@ -2,7 +2,7 @@
 
 **Project:** Trader-Resp — RSI Mean-Reversion Screener + Backtest
 **Owner:** Will Busch
-**Last updated:** July 14, 2026
+**Last updated:** July 15, 2026
 **Read alongside:** `STRATEGY.md`, `GOAL.md`, `CLAUDE-CODE-PROMPT.md`
 
 ---
@@ -19,6 +19,78 @@
 | **5** | Scale to full size | 🔴 BLOCKED on Phases 3 + 4 |
 
 **Currently in progress:** Phase 0 — nothing has been fixed in the live book yet.
+
+---
+
+## STAGE 0 UPDATE — 2026-07-15: RSI(14) switch, Robinhood-only data
+
+Three decisions made and implemented this session, ahead of `STRATEGY.md`
+being formally updated to match (that update is still pending — see below):
+
+- **Signal switched from RSI(3) to RSI(14) on 3-day bars.** `config.yaml`'s
+  `indicators.rsi_period` is now `14`. `screener/indicators.py` itself
+  didn't need to change — `rsi(close, period=...)` was already
+  period-agnostic; only the config value and the entry/exit threshold
+  numbers built around it change.
+- **Robinhood (MCP) is now the sole data source.** `yfinance` has been
+  removed from `screener/data.py` and `requirements.txt` entirely — there is
+  no automatic fallback to any other provider. The module only ever reads
+  from the parquet cache (`fetch_daily_bars()`); new data enters the cache
+  exclusively via `ingest_robinhood_bars()`, called by the agent after
+  pulling from the Robinhood `get_equity_historicals` MCP tool. This is a
+  real architectural constraint, not a preference: MCP tools are only
+  callable by the agent, not from a standalone Python script, so "fetch" is
+  now necessarily an agent-orchestrated step rather than something
+  `data.py` does on its own.
+- **Two `config.yaml` keys resolved:** `avg_volume_lookback_days` was
+  removed entirely (no longer a named threshold — Stage 1's volume filter
+  will need to define how it computes average volume when that stage is
+  built). `weekly_lower_low_lookback_weeks` is now `8`.
+
+**RSI(14) validation gate — MSFT & HIMS, 3-day bars, Robinhood data,
+5-year history (2021-07-15 to 2026-07-15):**
+
+| | MSFT | HIMS |
+|---|---|---|
+| Close (latest) | $395.63 | $37.17 |
+| RSI(14), 3-day (latest, partial bar) | 48.22 | 64.95 |
+| RSI(14) range (5yr) | 26.72 – 80.28 | 19.74 – 84.56 |
+| RSI(14) median (5yr) | 52.19 | 50.81 |
+
+Values computed and presented for TradingView cross-check — **not yet
+confirmed by the owner.** Same open loop as the original RSI(3) gate: the
+numbers are ready to compare, the actual match/mismatch determination still
+needs a human eyeballing TradingView's RSI(14)/3-day chart for both names.
+
+**Threshold re-tune — proposed, NOT yet written into `config.yaml`.**
+The old RSI(3)-era thresholds produce broken signal frequency under RSI(14)
+— most notably, `RSI(14) >= 80` (the old euphoria exit) fired **once in 5
+years** for MSFT (0.2 signals/year), because RSI(14) is a smoother
+oscillator that rarely reaches RSI(3)'s extremes. Measured crossing
+frequency across the same 5-year window (MSFT / HIMS, per year):
+
+| Threshold | Old value | Old freq (MSFT/HIMS) | Proposed | New freq (MSFT/HIMS) |
+|---|---|---|---|---|
+| Entry (RSI < X) | 35 | 1.8 / 2.6 | **35 (unchanged)** | 1.8 / 2.6 |
+| Euphoria exit (RSI ≥ X) | 80 | 0.2 / 0.6 | **70** | 1.6 / 2.4 |
+| Momentum-break arm (touch ≥ X) | 70 | 1.0 / 1.6 (at 70→60) | **65** | 1.4 / 1.8 (at 65→55) |
+| Momentum-break fire (cross < X) | 60 | ″ | **55** | ″ |
+
+Rationale: entry at 35 already fires at a comparable rate to the old
+system, no evidence it needs to move. Euphoria and momentum-break levels
+needed to come down because RSI(14) simply doesn't reach the old extremes
+often enough for those exits to function. **Awaiting owner confirmation
+before these four numbers get written into `config.yaml`.**
+
+**Doc drift flagged, not yet resolved:** `STRATEGY.md` (Parts 2 and 5)
+still documents RSI(3) with the original 35/70/80/60 thresholds and the
+reasoning specific to that period ("why 3-day, not daily," the 25-30% full-
+cycle-capture math in `GOAL.md`). This handoff intentionally scoped the
+`STRATEGY.md`/`GOAL.md` rewrite out — those documents carry `STRATEGY.md`'s
+own quarterly-review / 7-day-cooldown governance and shouldn't be rewritten
+as a side effect of a data-pipeline task. They need a deliberate update once
+the RSI(14) thresholds above are confirmed, or this project has two
+documents actively disagreeing about its own core signal.
 
 ---
 
@@ -44,8 +116,8 @@
 | Step | Task | Status |
 |---|---|---|
 | 1.1 | Repo scaffold + `config.yaml` — **every threshold a named key, zero magic numbers** | ☐ |
-| 1.2 | `data.py` — yfinance fetch, parquet cache, **fail loudly on missing data** | ☐ |
-| 1.3 | **Daily → 3-day bar resampling.** Get this exactly right. RSI(3) on 3-day bars ≠ RSI(3) on daily. **Write a test.** | ☐ |
+| 1.2 | `data.py` — Robinhood (MCP) fetch, parquet cache, **fail loudly on missing data, no fallback source** | ☑ (updated 2026-07-15, was yfinance) |
+| 1.3 | **Daily → 3-day bar resampling.** Get this exactly right. RSI(14) on 3-day bars ≠ RSI(14) on daily. **Write a test.** | ☐ |
 | 1.4 | `indicators.py` — RSI, SMA(200), ATR(14). Unit-test against a known reference. | ☐ |
 | 1.5 | Universe build — SPY + QQQ constituents, dedupe, apply hard filters, tag `SHARES_ELIGIBLE` / `LEAP_ELIGIBLE` | ☐ |
 | 1.6 | Signal engine — grade every name A / B / C / NO_TRADE | ☐ |
@@ -65,7 +137,7 @@
 | Step | Task | Status |
 |---|---|---|
 | 2.1 | Port entry/exit logic to Pine v5 | ☐ |
-| 2.2 | Plot: RSI(3) on 3-day, SMA(200), tranche ladder rungs, entry/exit markers | ☐ |
+| 2.2 | Plot: RSI(14) on 3-day, SMA(200), tranche ladder rungs, entry/exit markers | ☐ |
 | 2.3 | **Reconcile Pine vs Python on 3 names.** If they diverge, one is wrong. Find out which. | ☐ |
 
 **GATE:** Pine signals and Python signals match. No divergence.
