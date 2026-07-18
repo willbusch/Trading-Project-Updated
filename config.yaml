@@ -35,19 +35,24 @@ indicators:
 
 entry:
   # STAGE 2 (documented now per build spec, not consumed until Stage 2)
-  # NOTE: these threshold values were calibrated for RSI(3) and have NOT yet
-  # been updated for RSI(14) — the "rsi3_" key names are a leftover from
-  # that period, kept intentionally rather than renamed until the actual
-  # numbers are re-tuned and confirmed (see docs/PLAN.md — the RSI(14)
-  # threshold proposal is presented but deliberately not committed here).
+  # NOTE: the "rsi3_" key names are a leftover from the RSI(3) design and
+  # are kept as-is rather than renamed, to avoid implying these numbers
+  # have been re-validated for RSI(14). A re-tune (35/70/65/55) was
+  # proposed on 2026-07-15 based on RSI(14) signal-frequency data alone —
+  # NOT a backtest — and was explicitly rejected by the owner on
+  # 2026-07-15: "never authorized... do not describe an un-backtested
+  # change as evidence-backed again." Values below are the original
+  # STRATEGY.md numbers and stay that way until an actual backtest
+  # (not just signal-frequency counting) supports changing them.
   rsi3_buy_threshold: 35                  # RSI(3) < 35 triggers a look
   rsi3_grade_a_threshold: 30              # RSI(3) < 30 -> Grade A candidate
   weekly_lower_low_lookback_weeks: 8      # weekly chart "not making lower lows" lookback window
 
 exit:
   # STAGE 3
-  # Same caveat as entry: rsi3_* values below are still the RSI(3)-era
-  # numbers, pending confirmation of the RSI(14) re-tune proposal.
+  # Same caveat as entry: rsi3_* values are the original STRATEGY.md
+  # numbers. The 2026-07-15 re-tune proposal was rejected (see entry: note
+  # above) and is not reflected here.
   rsi3_euphoria_threshold: 80             # Trigger 1: RSI(3) >= 80 -> SELL
   rsi3_momentum_touch_threshold: 70       # Trigger 2 arm: RSI(3) touches >= 70
   rsi3_momentum_cross_below: 60           # Trigger 2 fire: then crosses back below 60
@@ -58,7 +63,11 @@ exit:
 sizing:
   # STAGE 2/3
   max_slots: 6                            # 5 core + 1 flex
-  max_position_pct_of_book: 0.25          # shares + LEAPs on same underlying = one bucket
+  # CHANGED 2026-07-15 (owner override): 25% -> 20%. Applies to stocks AND
+  # options — shares + LEAPs on same underlying = one bucket, capped at 20%.
+  # STRATEGY.md Part 6 still says 25%; that document has not been updated
+  # to match (see docs/PLAN.md override log).
+  max_position_pct_of_book: 0.20
   max_tranches_per_name: 3                # hard cap, no exceptions
   tranche_spacing_atr_multiple: 1.5       # 1.5 x ATR(14) below previous entry
   min_cash_floor_pct: 0.10                # minimum cash held
@@ -71,7 +80,12 @@ leap:
   expiry_min_months: 18                   # at entry
   force_close_months_to_expiry: 6         # regardless of P/L
   iv_rank_skip_threshold: 60              # skip if IV rank > 60 -> buy shares instead
-  sleeve_cap_pct_of_book: 0.25            # delta-adjusted notional
+  sleeve_cap_pct_of_book: 0.25            # total LEAP sleeve, delta-adjusted notional
+  # CHANGED 2026-07-15 (owner override): a single option entry caps at 20%
+  # of portfolio at time of purchase, flat, one entry, no tranche ladder
+  # (unchanged: NO_TRANCHE_LADDER rule below still applies).
+  single_entry_pct_of_book: 0.20
+  no_tranche_ladder: true                 # one entry, one exit — never average down an option
 
 circuit_breakers:
   # STAGE 2/3
@@ -79,10 +93,33 @@ circuit_breakers:
   account_drawdown_halt_pct: 0.30         # -30% -> halt new entries
   halt_duration_days: 30
 
+ut_bot:
+  # BACKTEST COMPARISON (screener/ut_bot.py) — ported from the original
+  # Pine v4 UT Bot Alerts script, computed on 3-day bars, Heikin Ashi OFF.
+  key_value: 1.0                          # "a" — sensitivity multiplier on ATR
+  atr_period: 10                          # "c" — ATR period for the trailing stop
+  # Sweep ranges for parameter tuning (training window only, never the vault):
+  key_value_sweep_min: 1.0
+  key_value_sweep_max: 4.0
+  key_value_sweep_step: 0.5
+  atr_period_sweep_min: 7
+  atr_period_sweep_max: 21
+  atr_period_sweep_step: 3
+
+strategy_c:
+  # RSI-armed, UT-triggered (the owner's thesis). Arming/expiry are on
+  # RSI(14), 3-day bars — separate from the entry.rsi3_* config above,
+  # which governs Strategy A only.
+  arm_touch_rsi_level: 35                 # RSI(14) touches <= this -> ARMED
+  arm_expiry_rsi_level: 50                # RSI(14) crosses back above this -> arm cancelled
+
 backtest:
-  # STAGE 6
+  # STAGE 6 (this comparison task runs on the owner's held names, not the
+  # full SPY/QQQ universe — see docs/PLAN.md for the scope note)
   years: 5
   slippage_pct: 0.001                     # 0.1%
+  split_half_boundary: "2024-01-01"       # 2021-2023 vs 2024-2026, reported separately
+  vault_months: 6                         # most recent N months held out, tested once
 
 data:
   # STAGE 0
