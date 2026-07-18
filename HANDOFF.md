@@ -1,4 +1,11 @@
 ---
+## 2026-07-17 — HANDOFF
+LAST_COMMIT: dc9b056
+SNAPSHOT: Building a 3-way strategy comparison (RSI-alone, UT-Bot-alone, RSI-armed/UT-triggered) on the owner's 7 held names. UT Bot ported and tested; RSI(14) re-tune proposal rejected and reverted; 20% position cap and NFLX-hold-to-expiry applied as owner overrides. Backtest engine itself not built yet.
+NEXT: Confirm UT Bot signals (MSFT/HIMS/ORCL) against TradingView before building Strategy B/C and the backtest engine on top of it.
+---
+
+---
 ## 2026-07-15 — HANDOFF
 LAST_COMMIT: 29c651b
 SNAPSHOT: RSI(14)/Robinhood-only switch complete and unchanged since last handoff; RSI(14) values and threshold re-tune still awaiting confirmation.
