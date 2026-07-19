@@ -1,4 +1,11 @@
 ---
+## 2026-07-19 — HANDOFF
+LAST_COMMIT: 3234db7
+SNAPSHOT: A/B/C/D backtest engine built and run once on the 7 held names (engine-validation pass, survivorship-biased by design). Strategy D was reconstructed from Addendum 2 alone — Addendum 1 (which defined D) never reached this session; two of D's params are flagged assumptions pending owner confirm/veto.
+NEXT: Get owner confirm/veto on strategy_d.volume_avg_bars (20) and the sweep range (1.0-2.0 step 0.25) in config.yaml; re-run D if either changes.
+---
+
+---
 ## 2026-07-19 — EXECUTED (Addendum 2; Addendum 1 NEVER ARRIVED — D reconstructed)
 DID: Built and ran the full A/B/C/D backtest engine on the 7 held names.
 New: screener/weekly.py + 8 backtest/ modules around ONE shared simulate()
@@ -15,7 +22,7 @@ works under default UT(1.0,10) (16 trades, +6.7% exp). B collapsed
 picked edge-of-grid cells (unstable). 70->60 exit hurt everything.
 FLAGGED: Strategy D's volume_avg_bars=20 and sweep range 1.0-2.0 are
 ASSUMED defaults (Addendum 1 missing) — need owner confirm/veto.
-LAST_COMMIT: (this commit)
+LAST_COMMIT: 3234db7
 ---
 
 ---
