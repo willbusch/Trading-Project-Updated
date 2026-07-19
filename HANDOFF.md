@@ -1,5 +1,12 @@
 ---
 ## 2026-07-17 — HANDOFF
+LAST_COMMIT: 308c16d
+SNAPSHOT: Full architecture designed (Plan-agent-assisted) for the A/B/C backtest engine on the 7 held names — 10 new files, one shared simulate() engine, ~10 judgment calls resolved and stated plainly. Zero implementation code written yet; awaiting owner go-ahead to start.
+NEXT: Get explicit go/no-go on starting the 10-step build sequence, then execute it.
+---
+
+---
+## 2026-07-17 — HANDOFF
 LAST_COMMIT: dc9b056
 SNAPSHOT: Building a 3-way strategy comparison (RSI-alone, UT-Bot-alone, RSI-armed/UT-triggered) on the owner's 7 held names. UT Bot ported and tested; RSI(14) re-tune proposal rejected and reverted; 20% position cap and NFLX-hold-to-expiry applied as owner overrides. Backtest engine itself not built yet.
 NEXT: Confirm UT Bot signals (MSFT/HIMS/ORCL) against TradingView before building Strategy B/C and the backtest engine on top of it.
