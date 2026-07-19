@@ -30,7 +30,13 @@ indicators:
                                            # Switched from RSI(3) — see docs/PLAN.md for the
                                            # validation gate and threshold re-tune evidence.
   rsi_method: "wilder"                    # Wilder's smoothing (RMA) — matches TradingView default
-  sma_trend_period: 200                   # SMA(200) on the daily — trend filter
+  # REMOVED FROM STRATEGY 2026-07-19 (owner override, Addendum 2): the
+  # close > SMA(200) gate is removed from ALL strategy entry logic (A/C/D),
+  # NOT kept as an ablation. SMA(200) may later be computed for display as
+  # a dashboard visual only — it has no role in signal logic and is not
+  # computed in the backtest signal path. Key kept for that future
+  # display use only.
+  sma_trend_period: 200
   atr_period: 14                          # ATR(14) — tranche ladder spacing
 
 entry:
@@ -63,20 +69,31 @@ exit:
 sizing:
   # STAGE 2/3
   max_slots: 6                            # 5 core + 1 flex
+  # CHANGED 2026-07-19 (owner override, A/B/C/D engine build "LOCKED
+  # DECISIONS"): 5 equity slots + 1 LEAP slot made explicit keys.
+  equity_slots: 5
+  leap_slots: 1
   # CHANGED 2026-07-15 (owner override): 25% -> 20%. Applies to stocks AND
-  # options — shares + LEAPs on same underlying = one bucket, capped at 20%.
-  # STRATEGY.md Part 6 still says 25%; that document has not been updated
-  # to match (see docs/PLAN.md override log).
-  max_position_pct_of_book: 0.20
-  max_tranches_per_name: 3                # hard cap, no exceptions
+  # options — shares + LEAPs on same underlying = one bucket.
+  # CHANGED AGAIN 2026-07-19 (owner override, LOCKED DECISIONS): 20% -> 15%
+  # for equities. STRATEGY.md Part 6 still says 25%; doc drift tracked in
+  # docs/PLAN.md override log.
+  max_position_pct_of_book: 0.15
+  max_tranches_per_name: 3                # hard cap — but single-entry is now
+                                           # PRIMARY; the 3-tranche ladder is a
+                                           # toggleable ablation variant only
   tranche_spacing_atr_multiple: 1.5       # 1.5 x ATR(14) below previous entry
-  min_cash_floor_pct: 0.10                # minimum cash held
+  # CHANGED 2026-07-19 (owner override, LOCKED DECISIONS): 10% -> 5%.
+  min_cash_floor_pct: 0.05
 
 leap:
   # STAGE 2/3 (separate rule set from equities)
   market_cap_min: 500_000_000_000         # $500B+ underlying only
-  delta_min: 0.70                         # deep ITM
-  delta_max: 0.80
+  # CHANGED 2026-07-19 (owner override, LOCKED DECISIONS): 0.70-0.80 ->
+  # 0.50-0.60. STRATEGY.md still says deep ITM 0.70-0.80; drift tracked in
+  # docs/PLAN.md override log.
+  delta_min: 0.50
+  delta_max: 0.60
   expiry_min_months: 18                   # at entry
   force_close_months_to_expiry: 6         # regardless of P/L
   iv_rank_skip_threshold: 60              # skip if IV rank > 60 -> buy shares instead
@@ -111,12 +128,32 @@ strategy_c:
   # RSI(14), 3-day bars — separate from the entry.rsi3_* config above,
   # which governs Strategy A only.
   arm_touch_rsi_level: 35                 # RSI(14) touches <= this -> ARMED
-  arm_expiry_rsi_level: 50                # RSI(14) crosses back above this -> arm cancelled
+  arm_expiry_rsi_level: 50                # RSI(14) reclaims this -> arm cancelled.
+                                           # LOCKED 2026-07-19 (Addendum 2): this is
+                                           # the ONLY expiry rule — no day cap, no
+                                           # time-based backstop. Applies to C and D.
+
+strategy_d:
+  # RSI-armed, VOLUME-triggered. Entry: RSI(14) <= 35 arms; a volume
+  # expansion bar (> multiplier x average volume) fires while armed; weekly
+  # lower-lows filter must also pass. Arm/expiry levels shared with
+  # strategy_c above (same arm state machine).
+  volume_multiplier: 1.25                 # given in Addendum 2 (owner-specified)
+  # ASSUMED — NOT CONFIRMED (2026-07-19): Addendum 1, which defined
+  # Strategy D, never reached the Code session; the two values below are
+  # reconstruction defaults flagged for owner veto, NOT owner-specified.
+  volume_avg_bars: 20                     # average = trailing 20 bars on the
+                                           # 3-day chart, prior bars only
+                                           # (excludes the signal bar itself)
+  volume_multiplier_sweep_min: 1.0        # sweep for D (training window only,
+  volume_multiplier_sweep_max: 2.0        #  never the vault), same discipline
+  volume_multiplier_sweep_step: 0.25      #  as the UT sweep above
 
 backtest:
   # STAGE 6 (this comparison task runs on the owner's held names, not the
   # full SPY/QQQ universe — see docs/PLAN.md for the scope note)
   years: 5
+  seed_cash: 100_000                      # starting book for every simulated run
   slippage_pct: 0.001                     # 0.1%
   split_half_boundary: "2024-01-01"       # 2021-2023 vs 2024-2026, reported separately
   vault_months: 6                         # most recent N months held out, tested once

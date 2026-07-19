@@ -1,4 +1,24 @@
 ---
+## 2026-07-19 — EXECUTED (Addendum 2; Addendum 1 NEVER ARRIVED — D reconstructed)
+DID: Built and ran the full A/B/C/D backtest engine on the 7 held names.
+New: screener/weekly.py + 8 backtest/ modules around ONE shared simulate()
+engine; 43 tests green incl. the adversarial cash-rule test. Config owner
+overrides applied and logged (15% equity cap, 5% cash floor, 0.50-0.60
+LEAP delta, 5+1 slots, SMA(200) fully removed from signals per Addendum 2,
+arm expiry locked to RSI-reclaims-50/no day cap). SPY ingested for the
+benchmark. LEAP spike: Robinhood DOES serve expired-contract history;
+this pass still used the labeled delta-0.55 approximation uniformly.
+RESULTS (reports/abcd_comparison.md, survivorship disclaimer in header):
+C took ZERO trades under B-swept UT(4.0,7) — arms set, never fired; C
+works under default UT(1.0,10) (16 trades, +6.7% exp). B collapsed
++128.7% pre-vault -> -4.4% in the vault (VAULT NOW SPENT). Both sweeps
+picked edge-of-grid cells (unstable). 70->60 exit hurt everything.
+FLAGGED: Strategy D's volume_avg_bars=20 and sweep range 1.0-2.0 are
+ASSUMED defaults (Addendum 1 missing) — need owner confirm/veto.
+LAST_COMMIT: (this commit)
+---
+
+---
 ## 2026-07-17 — HANDOFF
 LAST_COMMIT: 308c16d
 SNAPSHOT: Full architecture designed (Plan-agent-assisted) for the A/B/C backtest engine on the 7 held names — 10 new files, one shared simulate() engine, ~10 judgment calls resolved and stated plainly. Zero implementation code written yet; awaiting owner go-ahead to start.

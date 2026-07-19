@@ -22,6 +22,68 @@
 
 ---
 
+## OWNER OVERRIDE LOG
+
+Dated record of every owner decision that reverses or supersedes what
+STRATEGY.md / GOAL.md / this plan previously said. Config.yaml comments
+point here. STRATEGY.md and GOAL.md have NOT been rewritten to match yet —
+that rewrite is a tracked open item (doc drift is now 7+ items deep).
+
+| Date | Override | Reverses |
+|---|---|---|
+| 2026-07-15 | NFLX LEAP held to expiry | PLAN.md/STRATEGY.md "close NFLX" guidance |
+| 2026-07-15 | Max single position 25% → 20% (stocks AND options, same-underlying bucketed) | STRATEGY.md Part 6 |
+| 2026-07-19 | Max equity position 20% → **15%** ("LOCKED DECISIONS", A/B/C/D build) | the 2026-07-15 override above |
+| 2026-07-19 | Cash floor 10% → **5%** | STRATEGY.md |
+| 2026-07-19 | LEAP delta 0.70–0.80 → **0.50–0.60** | STRATEGY.md deep-ITM rule |
+| 2026-07-19 | Slots made explicit: **5 equity + 1 LEAP** | (new keys, no prior explicit value) |
+| 2026-07-19 | **SMA(200) gate removed from ALL strategy entry logic** (A/C/D), not kept as an ablation; display-only use permitted later (Addendum 2) | STRATEGY.md trend filter + this plan's Grade A/B/C half-size tiers |
+| 2026-07-19 | Arm expiry for C/D locked: RSI(14) reclaims 50 is the ONLY expiry — no day cap (Addendum 2) | (confirms existing config; forecloses any time-based backstop) |
+| 2026-07-19 | Single-entry is PRIMARY for equities; 3-tranche ladder demoted to ablation-only | STRATEGY.md tranche ladder |
+
+**Known spec gap (2026-07-19):** "Addendum 1" — the chat-drafted spec that
+defined Strategy D (RSI-armed, volume-triggered) and gave the A/B/C/D
+go-ahead — was never pasted into the Code session; only Addendum 2
+arrived. Strategy D was reconstructed from Addendum 2's entry table. Two
+parameters are therefore ASSUMED, NOT owner-confirmed, and are flagged as
+such in `config.yaml` pending veto: `strategy_d.volume_avg_bars: 20`
+(trailing 20 three-day bars, prior bars only) and the volume-multiplier
+sweep range (1.0–2.0 step 0.25). The 1.25× multiplier itself IS
+owner-specified (Addendum 2).
+
+---
+
+## BACKTEST ENGINE BUILT + FIRST RUN — 2026-07-19 (A/B/C/D engine-validation pass)
+
+The full portfolio backtest engine now exists and has run once on the 7
+held names (survivorship-biased BY DESIGN — engine validation, not proof
+of edge; the disclaimer is baked into `reports/abcd_comparison.md`).
+
+- New: `screener/weekly.py` (calendar-anchored weekly bars + lower-lows
+  filter) and `backtest/{features,signals,portfolio_state,constraints,
+  leap_pricing,simulator,reporting,orchestrate}.py`. One shared
+  `simulate()` engine; windows/sweeps/ablations are just inputs to it.
+  43 tests green, including the adversarial cash-rule test (same-bar sale
+  proceeds cannot fund an add to an underwater name).
+- Headline findings (details + caveats in the report): Strategy C took
+  ZERO trades under the B-optimized UT(4.0,7) sweep params — arms set but
+  the wide stop never fired a buy inside an armed window; C works under
+  default UT(1.0,10) (16 trades, +6.7% expectancy). Strategy B collapsed
+  from +128.7% pre-vault to −4.4% in the vault (0/3 wins) — the vault is
+  now SPENT. Both sweeps chose edge-of-grid cells (unstable). The 70→60
+  momentum exit hurt everything it touched.
+- LEAP pricing: uniform delta-adjusted approximation (static 0.55),
+  labeled per-name. Spike confirmed Robinhood serves full daily history
+  for EXPIRED contracts (MSFT Jun-23 $300C: 493/493 real bars) — upgrade
+  path documented in `backtest/leap_pricing.py`.
+- SPY ingested (1,266 daily bars, 2021-07-01 → 2026-07-17) for the
+  benchmark: pre-vault buy-and-hold +62.8% total, 11.4% CAGR.
+- OPEN: Strategy D's `volume_avg_bars` and sweep range are ASSUMED
+  reconstruction defaults (Addendum 1 never reached the Code session) —
+  see the override log's spec-gap entry; awaiting owner confirm/veto.
+
+---
+
 ## STAGE 0 UPDATE — 2026-07-15: RSI(14) switch, Robinhood-only data
 
 Three decisions made and implemented this session, ahead of `STRATEGY.md`
