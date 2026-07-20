@@ -54,7 +54,7 @@ RESEARCH PHASE FORMALLY CLOSED (docs/PLAN.md) — further strategy iteration
 needs a data source with point-in-time membership + historical fundamentals,
 which Robinhood cannot provide. Effort moves to Phase 0 and Phase 1.
 
-LAST_COMMIT: 5aa05c9be4150752977d5d86953ea1202e9b8e9e
+LAST_COMMIT: 7a0818791523419ff9a75abcfec9c4f99aa24495
 ---
 
 ---
