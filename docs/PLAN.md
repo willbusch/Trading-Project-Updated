@@ -53,7 +53,48 @@ owner-specified (Addendum 2).
 
 ---
 
-## BACKTEST ENGINE BUILT + FIRST RUN — 2026-07-19 (A/B/C/D engine-validation pass)
+## LATCHED-FIB STRATEGY BUILT + RUN — 2026-07-19 (12-name matrix)
+
+A/B/C/D formally RETIRED (code kept for reference, no longer run). The
+drawdown-gated latched-Fib strategy is now the sole active strategy.
+
+- New modules: `backtest/multi_tf.py` (UT on weekly/3-day/daily projected
+  onto one daily clock, forward-only), `backtest/drawdown_gate.py`
+  extended (Fib levels, dip-low-since-gate-clear, stale-anchor detection),
+  `backtest/fib_exit.py` (equity latched + LEAP simple exit machines,
+  forward-only), `backtest/fib_features.py`, `backtest/fib_simulator.py`
+  (daily clock; reuses the risk framework + cash rule unchanged),
+  `backtest/fib_reporting.py`, `backtest/fib_orchestrate.py`. 57 tests
+  green incl. exit-machine AND simulator lookahead tests.
+- Sample: 12 curated names (NFLX MSFT META NVDA AMD NOW ORCL MU TSLA HIMS
+  HOOD SOFI); META/NVDA/AMD/MU/TSLA ingested this session (2019-01 →
+  2026-07). $500B+ names get the LEAP path + 25% gate.
+- Stale-anchor decision (Option 1): entries whose 504d anchor is provably
+  stale (higher high within ~4yr but outside 2yr) EXCLUDED from headline;
+  both-ways diagnostic shown for HOOD/SOFI.
+- Slot tiebreak DEFINED (was unset): deepest drawdown → earliest
+  gate-clear → alphabetical.
+- LEAP force-close-6mo SUSPENDED strategy-scoped (global rule untouched);
+  LEAP entry floor 1.75yr / 2yr preferred; modeled 2yr expiry exit.
+- HEADLINE VERDICT (reports/fib_matrix.md): best cell `daily/weekly`.
+  Does NOT beat equal-weight-buy-hold-same-names — took 0 vault trades
+  (sat in cash) vs the benchmark's +65%. Latched does NOT beat simple
+  (identical trade set; latch never armed-and-saved a trade). Leak-hunt
+  passed (no cell >18% CAGR; high per-trade expectancy = long-hold
+  survivorship, not lookahead).
+- OPEN: full SPY/QQQ universe run (hybrid anchor for young names) — design
+  noted, not built. Expired-worthless LEAPs can't be modeled by the
+  delta-approx (no strike/theta) — reported N/A, a known limitation.
+
+**Future universe run — hybrid anchor design (don't build yet):** 504-day
+high by default, extended ~3–4yr lookback when a name's true peak sits
+just outside the 2yr window, so young post-IPO names get their real peak
+without reaching to ancient irrelevant highs. Ties into the stale-anchor
+detector already built (`is_stale_anchor`).
+
+---
+
+## BACKTEST ENGINE BUILT + FIRST RUN — 2026-07-19 (A/B/C/D engine-validation pass, RETIRED)
 
 The full portfolio backtest engine now exists and has run once on the 7
 held names (survivorship-biased BY DESIGN — engine validation, not proof

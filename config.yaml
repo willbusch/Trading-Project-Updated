@@ -103,6 +103,12 @@ leap:
   # (unchanged: NO_TRANCHE_LADDER rule below still applies).
   single_entry_pct_of_book: 0.20
   no_tranche_ladder: true                 # one entry, one exit — never average down an option
+  # LATCHED-FIB STRATEGY (2026-07-19): entry rules for this strategy —
+  # 0.50-0.60 delta (already above), 1.75yr expiry hard floor / 2yr
+  # preferred. force_close_months_to_expiry (6, above) is SUSPENDED for
+  # this strategy only; LEAPs ride to the Fib exit or modeled expiry.
+  fib_entry_expiry_min_years: 1.75        # never enter a LEAP under this
+  fib_modeled_expiry_years: 2.0           # "or expiry" exit horizon (preferred term)
 
 circuit_breakers:
   # STAGE 2/3

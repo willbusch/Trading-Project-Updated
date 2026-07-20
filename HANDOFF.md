@@ -1,4 +1,26 @@
 ---
+## 2026-07-19 — EXECUTED (from chat): Latched-Fib strategy, 12-name matrix
+DID: Built the drawdown-gated latched-Fib strategy end-to-end and ran the
+full 7-cell timeframe matrix on 12 curated names. A/B/C/D RETIRED (Strategy
+D open loop closed as obsolete). New modules: multi_tf (UT on weekly/3day/
+daily on one daily clock), drawdown_gate extended (Fib levels + stale
+detection), fib_exit (latched equity + simple LEAP machines), fib_features,
+fib_simulator (daily clock, reuses risk framework + cash rule untouched),
+fib_reporting, fib_orchestrate. Ingested META/NVDA/AMD/MU/TSLA. Stale-anchor
+Option 1 applied (exclude from headline + both-ways diagnostic). Slot
+tiebreak defined (deepest DD → earliest gate-clear → alpha). LEAP force-
+close suspended strategy-scoped; 1.75yr entry floor; 2yr modeled expiry.
+57 tests green incl. exit-machine + simulator lookahead tests.
+VERDICT (reports/fib_matrix.md): best cell daily/weekly. Does NOT beat
+equal-weight-buy-hold-same-names — 0 vault trades (sat in cash) vs +65%.
+Latched does NOT beat simple (identical; latch never fired). Leak-hunt
+passed (no cell >18% CAGR; high per-trade exp = long-hold survivorship).
+OPEN: full SPY/QQQ universe run (hybrid anchor) designed not built;
+expired-worthless LEAPs unmodelable by delta-approx (reported N/A).
+LAST_COMMIT: 30d904c9b43e1016cd321e967ef84e9b9ebd32f2
+---
+
+---
 ## 2026-07-19 — HANDOFF
 LAST_COMMIT: 3234db7
 SNAPSHOT: A/B/C/D backtest engine built and run once on the 7 held names (engine-validation pass, survivorship-biased by design). Strategy D was reconstructed from Addendum 2 alone — Addendum 1 (which defined D) never reached this session; two of D's params are flagged assumptions pending owner confirm/veto.
