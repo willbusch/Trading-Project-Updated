@@ -20,7 +20,7 @@ cluster dominates. Honest: NOT proof of edge, clears bar barely on thin
 evidence. Leak-hunt passed (combined CAGR 11-15%).
 OPEN: real edge verdict needs point-in-time membership + historical
 fundamentals — NOT available from Robinhood; different data source required.
-LAST_COMMIT: fd4196792136ea8dcb9260c2a9292d462ba1f1e4
+LAST_COMMIT: 572383b9b29b4ff2919bc4b3cc4311f7ceaceb2d
 ---
 
 ---
