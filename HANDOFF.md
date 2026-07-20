@@ -1,4 +1,11 @@
 ---
+## 2026-07-19 — HANDOFF
+LAST_COMMIT: 55e141a
+SNAPSHOT: Latched-Fib strategy built + 7-cell timeframe matrix run on 12 curated names. Best cell daily/weekly does NOT beat equal-weight-buy-hold-same-names (0 vault trades vs +65%); latched does not beat simple; leak-hunt passed. A/B/C/D retired.
+NEXT: Owner decision on whether to proceed to the full SPY/QQQ universe run (hybrid anchor for young names) or iterate the strategy given it sat in cash through the 12-month vault.
+---
+
+---
 ## 2026-07-19 — EXECUTED (from chat): Latched-Fib strategy, 12-name matrix
 DID: Built the drawdown-gated latched-Fib strategy end-to-end and ran the
 full 7-cell timeframe matrix on 12 curated names. A/B/C/D RETIRED (Strategy
