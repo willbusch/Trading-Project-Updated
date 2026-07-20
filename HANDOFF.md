@@ -17,7 +17,7 @@ Latched does NOT beat simple (identical; latch never fired). Leak-hunt
 passed (no cell >18% CAGR; high per-trade exp = long-hold survivorship).
 OPEN: full SPY/QQQ universe run (hybrid anchor) designed not built;
 expired-worthless LEAPs unmodelable by delta-approx (reported N/A).
-LAST_COMMIT: 30d904c9b43e1016cd321e967ef84e9b9ebd32f2
+LAST_COMMIT: 08aec85787096b62734d750e39f254ce56393be2
 ---
 
 ---
