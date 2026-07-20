@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 data_cache/
 .pytest_cache/
+portfolio.yaml
+# real account holdings — never committed
+data/live_positions_snapshot.json

@@ -1,9 +1,9 @@
 # PLAN.md
 
-**Project:** Trader-Resp — RSI Mean-Reversion Screener + Backtest
+**Project:** Trader-Resp — Drawdown-Gated Fibonacci Screener + Backtest
 **Owner:** Will Busch
-**Last updated:** July 15, 2026
-**Read alongside:** `STRATEGY.md`, `GOAL.md`, `CLAUDE-CODE-PROMPT.md`
+**Last updated:** July 20, 2026
+**Read alongside:** `STRATEGY.md` (v3.0 — Fib strategy is now official), `GOAL.md`, `CLAUDE-CODE-PROMPT.md`
 
 ---
 
@@ -11,14 +11,20 @@
 
 | Phase | What | Status |
 |---|---|---|
-| **0** | Fix the book | 🔴 NOT STARTED |
-| **1** | Dashboard (screener → BUY/SELL) | 🔴 NOT STARTED |
-| **2** | Pinescript port | 🔴 NOT STARTED |
-| **3** | **Backtest — THE GATE** | 🔴 NOT STARTED |
-| **4** | Live, small | 🔴 BLOCKED on Phase 3 |
-| **5** | Scale to full size | 🔴 BLOCKED on Phases 3 + 4 |
+| **0** | Fix the book | 🔴 NOT STARTED — **blocked on a new question, not the old one.** The 2026-07-20 live scanner pull found NO equity positions in any linked account (only 2 LEAPs, 84% sleeve, 0% cash) — materially different from the July 14 manual audit's 7-position book. Owner must confirm which is real before Phase 0 proceeds. See STRATEGY.md Part 7. |
+| **1** | Dashboard / live scanner (screener → BUY/SELL) | 🟡 IN PROGRESS — scaffolded 2026-07-20 |
+| **2** | Pinescript port | 🟢 DONE — UT-Bot ported (`screener/ut_bot.py`), tested |
+| **3** | **Backtest — THE GATE** | 🟢 DONE TO THE DATA CEILING — three research generations run (A/B/C/D retired → 12-name Fib matrix → 200-name universe run → final structural ablation). Cleared the honest benchmark on thin evidence; **edge is plausible, not proven** — the data source's lack of point-in-time membership/fundamentals is now the binding constraint, not more backtesting. Research phase closed 2026-07-20; see the override log. |
+| **4** | Live, small | 🔴 BLOCKED — not on Phase 3 anymore, but on Phase 0 (book not reconciled) and the open data-source question |
+| **5** | Scale to full size | 🔴 BLOCKED on Phases 0 + 4 |
 
-**Currently in progress:** Phase 0 — nothing has been fixed in the live book yet.
+**Currently in progress:** Phase 1 (live scanner) and Phase 0 (fix the
+book — now unblocked, not yet started).
+
+**This table previously said "Phase 0, nothing started" while three full
+backtest research generations sat undocumented below it — that contradiction
+was flagged in the 2026-07-19 project review and is fixed as of this
+update.**
 
 ---
 
@@ -26,8 +32,9 @@
 
 Dated record of every owner decision that reverses or supersedes what
 STRATEGY.md / GOAL.md / this plan previously said. Config.yaml comments
-point here. STRATEGY.md and GOAL.md have NOT been rewritten to match yet —
-that rewrite is a tracked open item (doc drift is now 7+ items deep).
+point here. **STRATEGY.md was rewritten to v3.0 on 2026-07-20** to match
+the active system — the doc-drift gap flagged below is closed for
+STRATEGY.md; GOAL.md is a separate, smaller open item.
 
 | Date | Override | Reverses |
 |---|---|---|
@@ -41,15 +48,25 @@ that rewrite is a tracked open item (doc drift is now 7+ items deep).
 | 2026-07-19 | Arm expiry for C/D locked: RSI(14) reclaims 50 is the ONLY expiry — no day cap (Addendum 2) | (confirms existing config; forecloses any time-based backstop) |
 | 2026-07-19 | Single-entry is PRIMARY for equities; 3-tranche ladder demoted to ablation-only | STRATEGY.md tranche ladder |
 
-**Known spec gap (2026-07-19):** "Addendum 1" — the chat-drafted spec that
-defined Strategy D (RSI-armed, volume-triggered) and gave the A/B/C/D
-go-ahead — was never pasted into the Code session; only Addendum 2
-arrived. Strategy D was reconstructed from Addendum 2's entry table. Two
-parameters are therefore ASSUMED, NOT owner-confirmed, and are flagged as
-such in `config.yaml` pending veto: `strategy_d.volume_avg_bars: 20`
-(trailing 20 three-day bars, prior bars only) and the volume-multiplier
-sweep range (1.0–2.0 step 0.25). The 1.25× multiplier itself IS
-owner-specified (Addendum 2).
+**Strategy D open loop — CLOSED 2026-07-20.** The two unconfirmed
+parameters (`volume_avg_bars`, sweep range) are moot: Strategy D and the
+rest of the RSI-system A/B/C/D suite are formally retired (kept in code
+for reference only, see STRATEGY.md Part 0). No further action needed.
+
+---
+
+## RESEARCH PHASE CLOSED — 2026-07-20
+
+After the final structural ablation (see `reports/` for the run), no
+further strategy iteration is planned on the current data source. The
+ceiling isn't the engine — it's tested, forward-only, and reused across
+every variant without incident. **The ceiling is data:** Robinhood MCP has
+no point-in-time index membership and no historical fundamentals, so every
+backtest here is a current-membership/current-fundamentals proxy no matter
+how the strategy is tuned. Further iteration requires a different data
+source. Until then, effort moves to Phase 0 (fix the book) and Phase 1
+(the live scanner) — both of which use the *current* strategy definition
+regardless of the unresolved edge question.
 
 ---
 

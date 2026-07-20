@@ -6,7 +6,12 @@ from backtest.drawdown_gate import (
     is_stale_anchor,
     price_fraction,
 )
-from backtest.fib_exit import EquityLatchExit, LeapSimpleExit
+from backtest.fib_exit import (
+    EquityLatchExit,
+    FullLatchExitV2,
+    LeapSimpleExit,
+    SimpleFloorExit,
+)
 
 
 # dip_low=0, high=100 -> fraction == price/100, fib levels at the round numbers
@@ -96,6 +101,103 @@ def test_exit_machine_is_forward_only():
     for i, p in enumerate(path[:5]):
         decisions_trunc.append(trunc.step(p, ut_sell=(i == 3)))
     assert decisions_full[:5] == decisions_trunc
+
+
+def _v2():
+    return FullLatchExitV2(dip_low=0.0, two_yr_high=100.0)
+
+
+def test_simple_floor_exit_05_matches_old_change1_default():
+    m = SimpleFloorExit(0.0, 100.0, floor=0.5)
+    assert m.step(30, ut_sell=True) == (False, None)           # below floor
+    assert m.step(70, ut_sell=False) == (False, None)
+    assert m.step(70, ut_sell=True) == (True, "simple_05_ut_sell")
+    m2 = SimpleFloorExit(0.0, 100.0, floor=0.5)
+    assert m2.step(162, ut_sell=False) == (True, "fib_1618_hard")
+
+
+def test_simple_floor_exit_09_matches_leap_simple_shape():
+    m = SimpleFloorExit(0.0, 100.0, floor=0.9)
+    assert m.step(85, ut_sell=True) == (False, None)           # below 0.9
+    assert m.step(95, ut_sell=True) == (True, "simple_09_ut_sell")
+
+
+def test_v2_hold_below_05():
+    m = _v2()
+    for p in [10, 30, 49]:
+        assert m.step(p, ut_sell=True) == (False, None)
+
+
+def test_v2_05_09_latch_arms_and_triggers_at_05():
+    m = _v2()
+    assert m.step(70, ut_sell=True) == (False, None)           # arm in 0.5-0.9
+    assert m.latch_09_armed
+    assert m.step(80, ut_sell=False) == (False, None)          # buy-equivalent: stays armed
+    assert m.latch_09_armed
+    assert m.step(45, ut_sell=False) == (True, "latch_v2_09_trigger")  # falls to 0.5 -> exit
+
+
+def test_v2_09_11_immediate_zone():
+    m = _v2()
+    assert m.step(100, ut_sell=False) == (False, None)
+    assert m.step(100, ut_sell=True) == (True, "latch_v2_09_11_ut_sell")
+
+
+def test_v2_11_15_latch_arms_and_triggers_at_11():
+    m = _v2()
+    assert m.step(120, ut_sell=True) == (False, None)          # arm in 1.1-1.5
+    assert m.latch_11_armed
+    assert m.step(105, ut_sell=False) == (True, "latch_v2_11_trigger")
+
+
+def test_v2_higher_zone_supersedes_lower_latch():
+    m = _v2()
+    m.step(70, ut_sell=True)                                   # arm 0.5-0.9 latch
+    assert m.latch_09_armed
+    m.step(100, ut_sell=False)                                 # rise into 0.9-1.1 (no sell)
+    assert not m.latch_09_armed                                # superseded, cleared
+    # falling all the way back to 0.5 now should NOT trigger the old arm
+    assert m.step(45, ut_sell=False) == (False, None)
+
+
+def test_v2_touching_15_arms_permanently_survives_pullback():
+    """The owner's explicit example: touch 1.5, pull back, a later UT sell
+    at 1.43 (still >0.5, below 1.5) exits anyway."""
+    m = _v2()
+    assert m.step(150, ut_sell=False) == (False, None)         # touch 1.5, no sell yet
+    assert m.touched_15
+    assert m.step(143, ut_sell=False) == (False, None)         # pulled back, no sell
+    assert m.step(143, ut_sell=True) == (True, "latch_v2_touched15_ut_sell")
+
+
+def test_v2_touched_15_beats_lower_zone_arming_logic():
+    """Once touched_15, the position no longer arms/re-arms lower latches —
+    it's governed solely by the permanent rule until it exits."""
+    m = _v2()
+    m.step(150, ut_sell=False)                                 # touch 1.5
+    m.step(70, ut_sell=True)                                   # deep pullback with a sell signal
+    # touched_15 path returns on ut_sell, so this should have exited already;
+    # verify directly instead with a non-selling pullback then a later sell
+    m2 = _v2()
+    m2.step(150, ut_sell=False)
+    m2.step(70, ut_sell=False)                                 # pullback, no sell
+    assert not m2.latch_09_armed                                # never armed via the old zone logic
+    assert m2.step(70, ut_sell=True) == (True, "latch_v2_touched15_ut_sell")
+
+
+def test_v2_hard_exit_at_1618_regardless_of_state():
+    m = _v2()
+    assert m.step(162, ut_sell=False) == (True, "fib_1618_hard")
+
+
+def test_v2_is_forward_only():
+    """LOOKAHEAD TEST for the new exit variant, same structural proof as
+    the original EquityLatchExit test."""
+    path = [10, 60, 100, 120, 150, 143, 90, 200]
+    full, trunc = _v2(), _v2()
+    decisions_full = [full.step(p, ut_sell=(i in (1, 5))) for i, p in enumerate(path)]
+    decisions_trunc = [trunc.step(p, ut_sell=(i in (1, 5))) for i, p in enumerate(path[:6])]
+    assert decisions_full[:6] == decisions_trunc
 
 
 def test_hybrid_anchor_uses_extended_high_when_504_is_stale():

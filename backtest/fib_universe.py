@@ -6,7 +6,7 @@ point-in-time SPY/QQQ backtest; the survivorship + fundamental-snapshot
 biases all cut in the strategy's favor and are flagged verbatim in the
 report header.
 
-CHANGE 1: equity exit is the SIMPLE exit (no latch) — simple_exit=True.
+CHANGE 1: equity exit is the SIMPLE exit (no latch) — exit_variant="simple_05".
 CHANGE 2: hybrid anchor (use_hybrid=True).
 CHANGE 3: quality gate = static membership in the scanned list (proxy).
 CHANGE 4: third benchmark = strategy with idle cash earning SPY.
@@ -111,7 +111,7 @@ def run_universe(cfg, cells=None, smoke_one=False):
         elig_stats[cl] = eligibility_over_time(frames)
         for wlabel, win in windows.items():
             base = dict(cell=cl, window_label=wlabel, leap_tickers=leap_tickers,
-                        simple_exit=True)  # CHANGE 1
+                        exit_variant="simple_05")  # CHANGE 1
             res = simulate_fib(frames, cfg, window=win,
                                seed_cash=cfg["backtest"]["seed_cash"], **base)
             res_spy = simulate_fib(frames, cfg, window=win,

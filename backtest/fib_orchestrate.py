@@ -102,9 +102,10 @@ def run_matrix(cfg):
     # ablation: latched vs simple on the best cell, combined pre-vault
     be, bx = next((e, x) for e, x in CELLS if cell_label(e, x) == best_cell)
     bframes = all_frames[(be, bx)]
-    latched = _run_cell(bframes, cfg, (FAR_PAST, vault_start), "ablation", cell=best_cell)
+    latched = _run_cell(bframes, cfg, (FAR_PAST, vault_start), "ablation",
+                        cell=best_cell, exit_variant="latched_v1")
     simple = _run_cell(bframes, cfg, (FAR_PAST, vault_start), "ablation",
-                       cell=best_cell, simple_exit=True)
+                       cell=best_cell, exit_variant="simple_05")
     ablation = {
         "best_cell": best_cell,
         "latched": {"trade": compute_trade_stats(latched),

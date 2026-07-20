@@ -1,170 +1,220 @@
 # STRATEGY.md
 
-**Version:** 2.0
-**Last updated:** July 14, 2026
+**Version:** 3.0
+**Last updated:** July 20, 2026
 **Owner:** Will Busch
 **Companion files:** `PLAN.md`, `GOAL.md`, `investor-one-pager-will-busch.md`, `portfolio-audit-2026-07-14.md`
 
 > **The one-line thesis:**
-> *I buy quality that's temporarily broken, and I hold until the market is euphoric about it again.*
+> *I buy quality that's temporarily broken, and I hold until it retraces most of the way back.*
 >
-> Entry is fear. Exit is greed. This is a **full-cycle system**, not a bounce trade — which is why the average win is 25-30%, not 8%, and why holds run months instead of days.
+> Entry is fear, defined by price against its own recent history. Exit is a
+> structured retracement zone, not a fixed target. This is a **full-cycle
+> system**, not a bounce trade — holds run months, sometimes years.
+
+---
+
+## ⚠️ STATUS: PLAUSIBLE, NOT PROVEN
+
+Backtested across three research generations (2026-07-19/20). The universe
+run cleared SPY buy-and-hold and the SPY-idle-cash benchmark in a 12-month
+vault — but on **2 trades**, with a **100% win rate in every window of
+every cell tested**, which is the signature of survivorship bias (the
+universe is defined by names that are large-cap and profitable *today*),
+not of demonstrated skill. Every large winner traces to the Feb–Mar 2020
+COVID crash and recovery — one regime, one name set, selected after the
+fact. **No real capital is deployed on this system until a data source
+supporting point-in-time index membership and historical fundamentals
+becomes available and the backtest is re-run against it.** See
+`reports/fib_matrix.md` and `reports/fib_universe.md` for full results and
+caveats.
+
+---
+
+## PART 0 — RETIREMENT NOTE: the RSI(3) system
+
+**Formally retired 2026-07-19**, after three research generations replaced
+it piece by piece: RSI(3)+SMA(200) entry → UT-Bot + drawdown-gate entry;
+RSI(70/60) momentum exit → Fibonacci-zone exit; 3-tranche ATR ladder →
+single entry. The RSI system is preserved in code
+(`backtest/{signals,simulator,orchestrate,reporting}.py`, the "A/B/C/D"
+strategies) for reference and is no longer run, tracked, or reported on.
+Its full history and the four owner overrides that preceded its
+retirement are in `docs/PLAN.md`'s override log.
+
+**This document previously described the RSI(3) system as current through
+2026-07-19 without noting the replacement — that gap is the drift this
+rewrite closes.** The engine swap itself (RSI+SMA → drawdown-gate+UT-Bot+Fib)
+is now logged as an override below, which it should have been at the time.
 
 ---
 
 ## PART 1 — THE UNIVERSE (What We Buy)
 
-### Hard Filters — fail any, disqualified
+### Quality Gate — fail any, disqualified
 
 | Filter | Rule | Why |
 |---|---|---|
-| **Index** | Must be in **SPY or QQQ** | Institutional coverage, real liquidity, no delisting risk. Not in the index = doesn't exist. |
-| **Market cap — shares** | **$10B – $499B** | Big enough to survive a drawdown, small enough to move. |
-| **Market cap — LEAPs** | **$500B+ ONLY** | Leverage only on names that can't go to zero. Mega-cap or no LEAP. |
-| **Sector** | **Any** | The chart is the thesis. The setup travels across sectors. |
-| **Fundamentals** | **None** | Deliberate. Technicals only. Documented so I don't drift into thesis-creep. |
-| **Price** | **> $10** | No wreckage. |
-| **Avg volume** | **> 2M/day** | I need to exit as easily as I entered. |
+| **Index** | SPY or QQQ membership | Institutional coverage, real liquidity, no delisting risk. **Data caveat below — read it.** |
+| **Market cap — equities** | **≥ $10B** at evaluation time | Big enough to survive a drawdown. |
+| **Market cap — LEAPs** | **$500B+ ONLY** | Leverage only on names that can't go to zero. The NFLX rule. |
+| **Profitability** | Positive trailing net profit margin | Screens out dying companies riding the same 40%-down filter as temporarily-hated quality. |
+| **Avg volume** | **> 1M/day** | Exit as easily as entry. |
+| **Sector** | Any | The chart is the thesis. |
+
+**🔴 DATA CAVEAT — read before trusting the eligible list:** the data source
+(Robinhood MCP) has **no point-in-time index-membership filter** and **no
+historical fundamentals** — only current snapshots. The backtested and
+live-scanned universe is actually *"names that are large-cap, profitable,
+and liquid today,"* not *"names that were in SPY/QQQ and profitable at each
+historical date."* This is a survivorship + fundamental-snapshot proxy,
+not a true point-in-time SPY/QQQ screen. It inflates every historical
+result in the strategy's favor. Fixing this requires a different data
+source — flagged as the top open item in `PLAN.md`.
 
 ### Anti-Portfolio — never, regardless of setup
 
-- Penny stocks / sub-$1
-- Meme stocks
-- Crypto
+- Penny stocks / sub-$10
+- Meme stocks, crypto
 - 0DTE, weeklies, any short-dated option
-- **LEAPs on anything under $500B** — *the NFLX rule, named after the mistake that created it*
-- **OTM LEAPs** — I buy leverage, not lottery tickets
-- Any name where I can't state the tranche ladder before entry
+- **LEAPs on anything under $500B** — the NFLX rule
+- OTM LEAPs at entry
+- LEAPs under 1.75 years to expiry at entry
 
 ---
 
 ## PART 2 — THE ENTRY (When We Buy)
 
-### Core Signal
+### The Drawdown Gate
 
-**`RSI(3) < 35` on the 3-day chart**
-**AND** weekly chart not making lower lows
+Price is **≥40% below its own hybrid 2-year-high anchor** (equities) or
+**≥25% below** (LEAP underlyings, additive to the $500B+ filter).
 
-### The Trend Filter
+**The hybrid anchor:** a rolling 504-trading-day (2yr) high by default;
+when a name's true multi-year peak sits *outside* the 504-day window but
+within ~4 years, the extended-lookback high is used instead. This fixes
+the "aged-out peak" problem young or long-depressed names hit under a
+strict 2yr window (HOOD/SOFI's 2021 IPO peaks are the reference case —
+see `backtest/drawdown_gate.py`). Forward-only; lookahead-tested.
 
-**`close > SMA(200)`** on the daily.
+**Dip low:** the lowest low since the drawdown gate most recently cleared,
+through the entry bar — never a future bar.
 
-**Why this is here even though my instinct says "oversold is oversold":**
-RSI stays oversold *the entire way down* on a broken stock. It's not a signal — it's a description of a falling knife. **My own book is the evidence:** HIMS, HOOD, SOFI, NOW — every winner, bought above the 200. **ORCL — my only loser, bought below it.** n=5 and statistically meaningless, but it's the only testable hypothesis I have. The backtest settles it.
+**Fib levels** (fractions of the dip-low-to-high move):
+`level = dip_low + fraction × (two_yr_high − dip_low)`, at 0.5 / 0.9 / 1.0
+/ 1.1 / 1.5 / 1.618.
 
-**The compromise:** below the 200 is still tradeable — at **half size.** I get to trade my instinct; my instinct doesn't get to size the trade.
+### The Trigger
 
-### Setup Grades
+A **UT-Bot buy signal** (key=1, ATR period=10, Heikin Ashi off) on the
+entry timeframe. **Winning configuration from the universe run: daily
+entry timeframe.** (UT-Bot ported from the Pine v4 "UT Bot Alerts" script;
+see `screener/ut_bot.py`.)
 
-| Grade | Conditions | Size |
-|---|---|---|
-| **A** | RSI(3) < 30 + above SMA(200) + at defined support | **Full tranche** |
-| **B** | RSI(3) < 35 + above SMA(200) | **Full tranche** |
-| **C** | RSI(3) < 35 + **below** SMA(200) | **Half tranche** (still burns a full tranche slot) |
-| **NO TRADE** | RSI(3) < 35 + below SMA(200) + lower lows on weekly | **Skip.** This is the ORCL trap. |
-
----
-
-## PART 3 — THE TRANCHE LADDER (Equities)
-
-### The Rules
-
-1. **3 tranches maximum per name. Hard cap. No exceptions.**
-2. **Spacing: 1.5 × ATR(14)** below the previous entry. *Not a fixed %.*
-3. **Max position: 25% of book** — shares + LEAPs on the same underlying = **one bucket.**
-4. **After tranche 3, the name is LOCKED.** No adds. Not at −40%. Not at RSI 10. Not ever.
-5. Each tranche ≈ 1/3 of the target max position.
-
-### Why ATR, not a fixed −7.5%
-
-A −7.5% move in MSFT is a rare event. In HIMS it's a Tuesday. Fixed spacing means I burn all three tranches on a volatile name in a week, and never fire tranche 2 on a stable one. **1.5 × ATR calibrates the ladder to the stock's own volatility.** Same idea, correct units.
-
-### The Math (worked, $45k book, 6 slots)
-
-Target max position: 25% = **$11,250** · Tranche ≈ **$3,750**
-
-| Tranche | Trigger | $ In | Cumulative |
-|---|---|---|---|
-| 1 | RSI(3) < 35 | $3,750 | $3,750 |
-| 2 | −1.5×ATR from T1 | $3,750 | $7,500 |
-| 3 | −1.5×ATR from T2 | $3,750 | **$11,250** |
-| — | **🔒 LOCKED** | $0 | $11,250 |
-
-**Worst case is now a known, bounded, pre-decided number.** Without the lock, six tranches deep is $22,500 and one bad name has eaten half the account.
-
-### The Point of the Lock
-
-**I do not use stop losses. I will not sell at a loss.** That's who I am and I've stopped pretending otherwise.
-
-**So the brake isn't an exit — it's a budget.** My max loss per name is capped not by selling, but by the fact that I've run out of permission to buy. **Being wrong now has a ceiling.**
-
-### The Slot Rule
-
-A locked (tranche-3) position may be released **only** to fund an **A-grade setup** when no cash and no free slot exists.
-
-Not "a better opportunity" — that's the excuse I already use. **A-grade only:** RSI(3)<30, above the 200, at support. The highest bar in the system.
-
-**I'm not cutting losers. I'm letting my best signal outbid my worst position.** That's competitive capital allocation, not capitulation.
-
-**Why this matters more than the loss:** I have 6 slots and each trade takes ~3 months. That's ~24 trade-slots a year. A dead name clogging a slot for 12 months costs me **4 trade-slots** — at +13% expectancy each, that's far more expensive than the drawdown itself. **In a 6-slot system, dead capital costs more than the loss.**
+*No RSI, no SMA(200), no weekly-lower-lows filter in the active entry
+logic — all replaced by the drawdown gate + UT-Bot trigger above.*
 
 ---
 
-## PART 4 — THE LEAP SLEEVE (Different Rules — Read Carefully)
+## PART 3 — SIZING (Equities)
 
-> **This sleeve is the entire path to 50%.** The equity book, run perfectly, produces 25-30%/yr. The remaining 20-25 points come from here and nowhere else. It is simultaneously the reason 50% is possible and the thing that can blow up the account. **That is the trade I am consciously making.**
+| Rule | Value |
+|---|---|
+| **Position sizing** | Single entry, one shot — **no tranche ladder** (demoted to an unused ablation variant; the RSI system's 3-tranche ATR ladder is retired with it) |
+| **Max position** | **15% of book** per name |
+| **Slots** | **5 equity + 1 LEAP** (6 total) |
+| **Max new positions per week** | **2** |
+| **Min cash floor** | **5%** |
 
-### The Rules
+### Slot-Selection Tiebreak
+
+When more names clear the gate + trigger on the same day than there are
+free slots: **deepest drawdown first**, then **earliest gate-clear date**,
+then **alphabetical**. (Defined 2026-07-19 — was previously an unset rule.)
+
+---
+
+## PART 4 — THE LEAP SLEEVE (Different Rules)
 
 | Rule | Spec | Why |
 |---|---|---|
-| **Underlying** | **$500B+ market cap only** | Mag7 and equivalents. Cannot go to zero on me. **NFLX fails this.** |
-| **Entry trigger** | Same: RSI(3)<35, above SMA(200) | The LEAP is my equity thesis with a multiplier — not a separate bet. |
-| **Strike** | **Deep ITM, 0.70–0.80 delta** | ~2x leverage with ~80% of the stock's move. Low theta, low IV sensitivity. **I'm buying leverage, not a lottery ticket.** |
-| **Expiry** | **18+ months minimum** at entry | Time to be right. |
-| **Force close** | **At 6 months to expiry**, regardless of P/L | Theta accelerates hard past that line. Under 6 months it's not a LEAP, it's an expensive option. |
-| **IV filter** | **Skip if IV rank > 60** → buy shares instead | RSI(3)<35 means the stock got crushed → IV is elevated → I'd be overpaying. |
-| **Sizing** | By **delta-adjusted notional**, NOT premium paid | $9,579 in premium controlling $115k of MSFT is a $115k position, not a $9,579 one. |
-| **Tranche ladder** | **NONE. One entry, one exit.** | Averaging down on options compounds leverage *and* decay. If it goes against me, I eat it. That's the price of leverage. |
-| **Sleeve cap** | **25% of book** (delta-adjusted notional) | |
-| **Exit** | **Trigger 2 only** (RSI 70 → cross below 60) | Don't sell mega-cap LEAPs on Trigger 1 — time value is the asset. |
+| **Underlying** | **$500B+ market cap only** | Cannot go to zero. NFLX fails this. |
+| **Entry trigger** | Same drawdown gate (25%) + UT-Bot buy | The LEAP is the equity thesis with a multiplier. |
+| **Delta at entry** | **0.50–0.60** | Changed 2026-07-19 from the RSI-system's 0.70–0.80 deep-ITM rule — see override log. |
+| **Expiry** | **1.75 years minimum** at entry, **2 years preferred** | Time to be right; hard floor, not a target. |
+| **Force-close-at-6-months** | **SUSPENDED for this strategy only.** LEAPs ride to the Fib exit or the modeled 2-year expiry. The global 6-month force-close rule (`config.yaml leap.force_close_months_to_expiry`) is untouched for any future strategy that doesn't explicitly suspend it. | The Fib exit is the only exit signal this strategy trusts; a time-based override would contradict it. |
+| **Sizing** | Delta-adjusted notional, single entry, **20% of book cap** | No tranche ladder on options — never average down. |
+| **Pricing model** | **0.55-delta static approximation** (midpoint of 0.50–0.60), ignoring theta and IV — **optimistic**. Documented limitation, not a bug: real historical option premiums exist for expired contracts but selecting *which* contract at each historical entry requires greeks anyway, so one consistent approximation beats a mixed model. | See `backtest/leap_pricing.py`. |
+| **Expired-worthless LEAPs** | **Cannot be modeled** — the delta-approximation has no strike/theta, so it structurally cannot produce a worthless expiry. Reported as N/A, a known limitation. | |
 
-### The NFLX Lesson
+### The NFLX Lesson (retained from the RSI system — still true)
 
-$112C, June 2027, NFLX at $73.65 = **34% OTM**, 11 months left. I labeled it "bad entry" myself before anyone asked. **It violates three rules at once:** sub-$500B underlying, deep OTM, and no RSI trigger at entry. It is the anomaly, not the pattern — and every LEAP rule above exists because of it.
+$112C, June 2027, NFLX at $73.65 = 34% OTM, 11 months left at entry. Violated
+three rules at once: sub-$500B underlying, deep OTM, no trigger at entry.
+Held to expiry by owner decision (2026-07-15 override) despite failing the
+current strategy on all three counts — a known, accepted exception, not a
+precedent.
 
 ---
 
 ## PART 5 — THE EXIT (When We Sell)
 
-*This is the strongest part of my system. Mechanical, precise, doesn't ask my opinion.*
+*Fibonacci retracement zones, referencing the same anchors frozen at entry.
+Price is expressed as a fraction of the dip-low-to-high move
+(dip_low = 0.0, two_yr_high = 1.0, target = 1.618).*
 
-### Trigger 1 — Euphoria
-**`RSI(3) ≥ 80` → SELL.** The market is paying a premium for my patience. Take it.
+### Equity Exit
 
-### Trigger 2 — Momentum Break *(primary)*
-**`RSI(3)` touches ≥ 70, then crosses back below 60 → SELL.**
-Trigger 1 sells into strength; **Trigger 2 sells when strength fails.** It confirms the rollover rather than guessing the top.
+**Winner of the 2026-07-20 three-way ablation: a plain 0.9 floor, no
+latch.** (`backtest.fib_exit.SimpleFloorExit(floor=0.9)`, config key
+`exit_variant="simple_09"`.)
 
-### Exit Sizing
-
-| Condition | Action |
+| Zone | Rule |
 |---|---|
-| Position **> 25% of book** | Trim to 20% → **CASH** |
-| Within cap, **1st** exit signal | Sell 50%. Let the rest run. Re-entry allowed on next RSI(3)<35. |
-| Within cap, **2nd** exit signal | Close it. |
-| **LEAP** | **Trigger 2 only.** |
+| below 0.9 | Hold |
+| 0.9 → 1.618 | Any UT sell (exit timeframe) → full exit |
+| 1.618 | Hard automatic exit |
 
-### 🚨 THE CASH RULE — the most important line in this document
+Beat both the prior 0.5-floor champion (pre-vault expectancy +93.9% vs
++45.8%) **and** a new, more complex full-latch design the owner proposed
+that same day (+82.4%) — see `reports/fib_final_ablation.md`. Simplicity
+has now won every exit-design ablation run in this project's history. The
+full-latch design (`FullLatchExitV2`) is kept in code for reference; its
+extra travel-zone latches were shown to cost real money (3 gap trades,
+$77,064 given back pre-vault) without a matching expectancy benefit.
 
-> **ALL proceeds from ANY sale go to CASH. Never directly into a position I am currently underwater on.**
+Selection was made on **pre-vault** expectancy only — the 12-month vault
+was deliberately not used to pick a winner among the three candidates, to
+avoid re-peeking the same held-out window repeatedly (see the ablation
+report's methodology note).
 
-This rule exists specifically to stop me. **Trimming HIMS to buy more ORCL** is the trade that converts my winners into my losers. It *feels* like buying low. It is **systematically rotating capital from what's working into what isn't.**
+### LEAP Exit — simple, no latch
 
-**Cash → wait → new entry that clears the criteria on its own merits.** No exceptions. The software must make the alternative structurally impossible.
+| Zone | Rule |
+|---|---|
+| below 0.9 | Hold |
+| 0.9 → 1.618 | Any UT sell (exit timeframe) → full exit |
+| 1.618 | Hard automatic exit |
 
-### There Is No Loss Exit
-By design and by choice. A losing position is **frozen**, not sold. It sits as dead capital and as a tax on being wrong. **That is the price I pay for refusing stops, and I'm paying it with open eyes.**
+### 🚨 THE CASH RULE — unchanged, still the most important line in this document
+
+> **ALL proceeds from ANY sale go to CASH. Never directly into a position I
+> am currently underwater on.**
+
+Enforced structurally in `backtest/constraints.py` / `portfolio_state.py`,
+with an adversarial test guarding it — same-bar sale proceeds cannot fund
+an add to an underwater name. This rule survived the engine replacement
+unchanged; it is the one piece of the original strategy that was never in
+question.
+
+### There Is No Loss Exit Below the Floor
+
+By design: below the exit floor (0.5 or 0.9, depending on the ablation
+winner), a losing or flat position is held, not sold on a stop. **"The
+Gap"** — trades that peaked above entry, never reached 1.618, never
+triggered a zone exit, and closed at a loss or gave back most of their
+peak gain — is tracked explicitly in every backtest report as the
+quantified cost of this design choice.
 
 ---
 
@@ -172,55 +222,90 @@ By design and by choice. A losing position is **frozen**, not sold. It sits as d
 
 | Control | Limit |
 |---|---|
-| Max positions | **6** (5 core + 1 flex) |
-| Max single name (shares + LEAPs) | **25%** |
-| Max LEAP sleeve (delta-adj notional) | **25%** |
-| Min cash | **10%** |
-| Max tranches per name | **3** |
-| Tranche spacing | **1.5 × ATR(14)** |
-| **Max new positions per week** | **2** |
+| Max positions | **6** (5 equity + 1 LEAP) |
+| Max single equity position | **15%** |
+| Max LEAP sleeve (single entry, delta-adjusted notional) | **20%** |
+| Min cash | **5%** |
+| Tranche ladder | **Retired** (single entry only) |
+| Max new positions per week | **2** |
 | **🛑 ACCOUNT KILL SWITCH** | **−30% → HALT all new entries for 30 days** |
 
-### Why 6 slots, not 10
-$45k ÷ 10 = $4,500/slot ÷ 3 tranches = **$1,500 a buy.** That's four shares of MSFT. **Nobody compounds 50% a year owning ten things.** Concentration isn't a preference — it's arithmetic. 6 slots = ~$7,500 each, room to breathe, still concentrated.
-
-### Why the weekly entry cap
-My worst risk isn't a bad stock. It's **six positions all entered in the same drawdown week.** Everything oversold at once = everything correlated = one market move takes the whole book.
-
 ### Why the kill switch
-**No stops + leverage + concentration = a real path to zero.** The halt doesn't force a sale. It just **stops me digging.** It's the only thing standing between me and a catastrophic year.
+
+No stops on open losers + leverage (LEAP sleeve) + concentration (6 slots)
+= a real path to a very bad year. The halt doesn't force a sale — it stops
+new entries from digging the hole deeper while a position is frozen.
 
 ---
 
 ## PART 7 — CURRENT BOOK vs. THIS STRATEGY
 
-*As of July 14, 2026 — the dashboard must flag every one of these*
+### 🔴 Live pull, 2026-07-20 (scanner scaffold's first real run — supersedes the stale July 14 manual audit below)
 
-| Violation | Current | Required |
+Pulled directly from the linked Robinhood accounts (all 3 checked; only
+the default margin account, ...803, holds anything):
+
+| Violation | Live (2026-07-20) | Required |
+|---|---|---|
+| LEAP slots | **2 held** (NFLX, MSFT) | **1 max** |
+| LEAP sleeve | **83.7%** of this account | **20% max** |
+| Cash | **0.0%** | **5% min** |
+| **NFLX LEAP** | **Still held** | **Ineligible — fails the $500B rule outright** |
+| Equity positions | **None found** in any of the 3 linked accounts | 5 slots available |
+
+**🔴 Material discrepancy from the July 14 audit below: no equity
+positions (HIMS, HOOD, SOFI, NOW) were found anywhere.** Either they were
+sold since July 14 and the audit was never updated, or they're held in an
+account this session's Robinhood connection doesn't see. **This needs the
+owner's confirmation before Phase 0 proceeds** — reconciling against a
+book that may not reflect reality would be worse than not reconciling at
+all. Full detail: `reports/live_scan_2026-07-20.md`.
+
+### July 14, 2026 audit (manual, pre-scanner — kept for history, not current)
+
+| Violation | Then | Required |
 |---|---|---|
 | Position count | 7 | 6 |
-| LEAP sleeve | 38% | 25% |
-| Cash | 1.5% | 10% |
-| HIMS size | 26.7% | 25% |
+| LEAP sleeve | 38% | 20% |
+| Cash | 1.5% | 5% |
+| HIMS size | 26.7% | 15% |
 | **NFLX LEAP** | **Held** | **Ineligible — fails the $500B rule outright** |
-| Invalidation levels | None written | All |
 
-**Priority 1 — close the NFLX LEAP.** It fails the strategy on three counts, and closing it fixes the LEAP overage *and* the cash floor in one trade. It is the cleanest move available.
+**None of these have been fixed yet.** Phase 0 ("fix the book") remains
+untouched — see `PLAN.md`. **Reconcile against the live 2026-07-20 pull
+above, not this table** — it's stale and the two disagree on whether
+equity positions even still exist.
 
 ---
 
 ## OVERRIDE LOG
 
-*Rules I argued against, and why they're in here anyway.*
+*Rules changed from a prior version of this document, and why.*
 
-| Date | Rule | My position | Resolution |
-|---|---|---|---|
-| 2026-07-14 | 200 SMA trend filter | *"Oversold is oversold"* | **Compromise:** below-200 setups allowed at **half size.** My own book: every winner above the 200, my only loser below it. |
-| 2026-07-14 | Stop losses | *"I won't use stops"* | **Accepted.** Replaced with the **3-tranche lock** — bounds the loss without forcing a sale. **The backtest will still report what a stop would have done. I want the data even if I reject the rule.** |
-| 2026-07-14 | ORCL invalidation price | *"There is no such price"* | **🔴 UNRESOLVED.** Documented as a known blind spot. The tranche lock is the only thing standing between me and this position. |
-| 2026-07-14 | Slot count | *"Let's move to 10"* | **Rejected → 6.** Ten slots dilutes the book below the concentration required to compound at target. |
-| 2026-07-14 | 66% win-rate target | *(mine)* | **Demoted.** Chasing win rate makes me cut winners early — the exact opposite of my RSI(3)≥80 exit. **Track expectancy, not win rate.** |
+| Date | Override | Reverses |
+|---|---|---|
+| 2026-07-14 | 200 SMA trend filter | *(RSI-system era; see retired history below)* |
+| 2026-07-15 | Max single position 25% → 20% | RSI-system Part 6 |
+| 2026-07-15 | NFLX LEAP held to expiry | "close NFLX" guidance |
+| 2026-07-19 | Max equity position 20% → **15%** | the 2026-07-15 override above |
+| 2026-07-19 | Cash floor 10% → **5%** | RSI-system Part 6 |
+| 2026-07-19 | LEAP delta 0.70–0.80 → **0.50–0.60** | RSI-system deep-ITM rule |
+| 2026-07-19 | Slots made explicit: **5 equity + 1 LEAP** | (new keys) |
+| 2026-07-19 | SMA(200) gate removed from all entry logic | RSI-system trend filter |
+| 2026-07-19 | Single-entry primary; 3-tranche ladder demoted to ablation-only | RSI-system tranche ladder |
+| **2026-07-19** | **🔴 ENGINE REPLACED: RSI(3)+SMA(200) entry / RSI(70→60) exit → drawdown-gate+UT-Bot entry / Fibonacci-zone exit.** This is the single largest change in the project's history and was not logged as an override at the time it happened — three research generations (A/B/C/D → 12-name Fib matrix → 200-name universe run) occurred before this document was updated to match. Logged retroactively 2026-07-20 per the project review's lead finding. | The entire RSI(3) mean-reversion system described in STRATEGY.md v2.0 |
+| 2026-07-19 | LEAP force-close-at-6-months **suspended, strategy-scoped only** — LEAPs ride to the Fib exit or 2yr modeled expiry | RSI-system force-close rule (still active globally for any strategy that doesn't explicitly suspend it) |
+| 2026-07-19 | Slot-selection tiebreak defined: deepest drawdown → earliest gate-clear → alphabetical | (previously unset) |
+| 2026-07-20 | Equity exit floor: see the three-way ablation in `reports/` — winner promoted here once run completes | RSI-system Trigger 1/Trigger 2 exits |
+
+**Known spec gap (2026-07-19, still open):** Strategy D (RSI-armed,
+volume-triggered) was reconstructed from a partial spec; two of its
+parameters were never owner-confirmed. **Moot** — Strategy D is retired
+with the rest of the RSI system.
 
 ---
 
-*Reviewed quarterly. No rule may be changed while a position it governs is underwater. Material changes require a 7-day cooldown before execution.*
+*Reviewed after each research generation. Backtests are not promises —
+survivorship bias, changing market regimes, and the data source's
+current-snapshot limitation all apply. No rule may be changed while a
+position it governs is underwater.*

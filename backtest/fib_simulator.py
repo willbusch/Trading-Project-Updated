@@ -17,9 +17,26 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from backtest.constraints import EntryOrder, check_all_entry_constraints
-from backtest.fib_exit import EquityLatchExit, LeapSimpleExit
+from backtest.fib_exit import (
+    EquityLatchExit,
+    FullLatchExitV2,
+    LeapSimpleExit,
+    SimpleFloorExit,
+)
 from backtest.leap_pricing import PRICING_LABEL, leap_delta
 from backtest.portfolio_state import PortfolioState
+
+# EQUITY exit variant registry (2026-07-20 three-way ablation). LEAP exit is
+# ALWAYS LeapSimpleExit (floor 0.9, no latch, per STRATEGY.md) regardless of
+# this setting — equity and LEAP exits are independent. (Fixes a bug in the
+# prior simple_exit=True path, which incorrectly forced LEAPs through the
+# 0.5-floor equity logic too — see docs/PLAN.md 2026-07-20 note.)
+EQUITY_EXIT_VARIANTS = {
+    "simple_05": lambda dl, hi: SimpleFloorExit(dl, hi, floor=0.5),   # 12-name-round champion
+    "simple_09": lambda dl, hi: SimpleFloorExit(dl, hi, floor=0.9),   # owner's earlier idea
+    "latch_v2": lambda dl, hi: FullLatchExitV2(dl, hi),               # owner's new full-latch design
+    "latched_v1": lambda dl, hi: EquityLatchExit(dl, hi),             # original design, reference only
+}
 
 
 @dataclass
@@ -83,7 +100,9 @@ def simulate_fib(
     window_label: str = "combined",
     leap_tickers: frozenset = frozenset(),
     include_stale: bool = False,          # both-ways diagnostic sets this True
-    simple_exit: bool = False,            # CHANGE 1: no latch, sell@1.618 or UT>0.5
+    # equity exit only; see EQUITY_EXIT_VARIANTS. "simple_09" is the
+    # STRATEGY.md-official winner of the 2026-07-20 three-way ablation.
+    exit_variant: str = "simple_09",
     idle_cash_spy: "pd.Series | None" = None,  # CHANGE 4: daily SPY return credited
                                           # to idle cash (prices the cash drag; also
                                           # realistically raises buying power)
@@ -159,7 +178,7 @@ def simulate_fib(
             two_yr_high, dip_low = _snap["high_2yr"], _snap["dip_low"]
             from backtest.drawdown_gate import price_fraction
             machine = (LeapSimpleExit(dip_low, two_yr_high) if kind == "leap"
-                       else EquityLatchExit(dip_low, two_yr_high))
+                       else EQUITY_EXIT_VARIANTS[exit_variant](dip_low, two_yr_high))
             exit_machines[tkr] = machine
             open_trades[tkr] = FibTrade(
                 tkr, kind, date, fill, shares, two_yr_high, dip_low,
@@ -185,9 +204,7 @@ def simulate_fib(
                     if age_yrs >= cfg["leap"]["fib_modeled_expiry_years"]:
                         pending_exits[tkr] = "leap_modeled_expiry"
                         continue
-                do_exit, reason = _eval_exit(
-                    exit_machines[tkr], price, bool(row["exit_ut_sell"]), simple_exit,
-                )
+                do_exit, reason = exit_machines[tkr].step(price, bool(row["exit_ut_sell"]))
                 if do_exit:
                     pending_exits[tkr] = reason
             else:
@@ -237,20 +254,3 @@ def simulate_fib(
     result.equity_curve = pd.Series(equity_hist, index=all_dates, name="equity")
     result.cash_curve = pd.Series(cash_hist, index=all_dates, name="cash")
     return result
-
-
-def _eval_exit(machine, price, ut_sell, simple_exit):
-    """Dispatch to the position's Fib machine, or the ablation's simple
-    exit (sell at 1.618 OR any exit-TF UT sell while price fraction > 0.5;
-    no zones, no latch)."""
-    if not simple_exit:
-        return machine.step(price, ut_sell)
-    from backtest.drawdown_gate import price_fraction
-    frac = price_fraction(price, machine.dip_low, machine.two_yr_high)
-    if frac != frac:
-        return False, None
-    if frac >= 1.618:
-        return True, "simple_1618_hard"
-    if frac > 0.5 and ut_sell:
-        return True, "simple_ut_sell"
-    return False, None

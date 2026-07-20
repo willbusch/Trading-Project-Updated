@@ -1,4 +1,63 @@
 ---
+## 2026-07-20 — EXECUTED (from chat, morning prompt): Promote Fib, final ablation, scanner scaffold
+DID (4 tasks, in dependency order):
+T1 — STRATEGY.md rewritten to v3.0: drawdown-gated Fib is now the OFFICIAL
+strategy, RSI(3) system formally retired (Part 0 retirement note), the
+2026-07-19 engine swap logged as an override (it never had been). PLAN.md
+status table fixed to match reality (was contradicting its own body per
+the 2026-07-19 review); Strategy D open loop closed (moot, retired).
+"PLAUSIBLE, NOT PROVEN" banner added up top — carries every caveat verbatim.
+
+T2 — Final structural ablation on the universe winning cell (daily/weekly):
+3-way equity exit (simple 0.5 floor / simple 0.9 floor / new full-latch
+design FullLatchExitV2) + deployment throttle (5 slots/2-per-wk vs 6/3).
+Selection used PRE-VAULT expectancy only (vault reported but not used to
+pick, across 5 candidate variants — avoids re-peeking the same held-out
+window). WINNER: simple 0.9-floor, no latch (exp +93.9% vs +45.8% old
+champion vs +82.4% new latch design) — simplicity wins again. Latch design
+costs $77,064 in quantified give-back (3 Gap trades) with no expectancy
+edge. Throttle loosening HURT (return 4.16->2.15 pre-vault) — kept at 5/2.
+STRATEGY.md's exit section updated with the winner. simulate_fib's default
+exit_variant changed to "simple_09". Found + fixed a real bug while
+generalizing: the old simple_exit=True path had silently forced LEAP exits
+through the 0.5 equity floor instead of their documented 0.9 floor in the
+prior universe run — now independent per position kind.
+reports/fib_final_ablation.md has full detail.
+
+T3 — Scaffolded scanner/ (Phase 1, the original project vision): refresh.py
+(documents the agent-driven MCP refresh steps — no standalone automation is
+possible, MCP tools are agent-turn-only) + report.py (pure Python, imports
+ONLY tested backtest modules, 4-section daily report: ELIGIBLE, FIRING,
+OPEN POSITIONS, VIOLATIONS). Signal-parity test green. RAN IT LIVE against
+the real Robinhood accounts (read-only, no orders) as proof — see
+reports/live_scan_2026-07-20.md. Found + fixed a second live bug: open-
+positions anchor lookup used an empty leap_tickers set, breaking MSFT's
+gate threshold (40% instead of 25%) and NaN'ing its Fib fraction.
+
+🔴 T3 LIVE-DATA FINDING (not a bug — a real discrepancy): the live pull
+found ZERO equity positions in ANY of the 3 linked Robinhood accounts —
+only the 2 known LEAPs (NFLX, MSFT), 84% LEAP sleeve, 0% cash. This
+contradicts the July 14 manual audit's "7 positions, HIMS 26.7%" book.
+Either equities were sold since July 14 and the audit was never updated,
+or they're in an account this session can't see. STRATEGY.md Part 7 now
+carries BOTH the live pull and the stale audit side by side, flagged.
+**This must be resolved before Phase 0 (fix the book) can proceed** — see
+next-step below.
+
+data/live_positions_snapshot.json is real account data — gitignored, never
+committed (added to .gitignore this session, matching portfolio.yaml).
+
+73 tests green (14 new this session: exit-variant + hybrid-anchor +
+scanner tests, incl. 2 lookahead tests and 1 signal-parity test).
+
+RESEARCH PHASE FORMALLY CLOSED (docs/PLAN.md) — further strategy iteration
+needs a data source with point-in-time membership + historical fundamentals,
+which Robinhood cannot provide. Effort moves to Phase 0 and Phase 1.
+
+LAST_COMMIT: 5aa05c9be4150752977d5d86953ea1202e9b8e9e
+---
+
+---
 ## 2026-07-19 — HANDOFF
 LAST_COMMIT: c236af6
 SNAPSHOT: Full-universe (200-name current-membership proxy) Fib run complete. Winning cell daily/weekly beat SPY and the SPY-idle-cash variant in the 12mo vault, but on 2 trades with 100% win rate every window = survivorship; not proof of edge. 59 tests green.
