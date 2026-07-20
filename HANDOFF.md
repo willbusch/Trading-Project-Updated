@@ -1,4 +1,63 @@
 ---
+## 2026-07-20 — EXECUTED (from chat): Book reconciled + results dashboard
+DID (2 tasks):
+T1 — Reconciled the "zero equities" mystery: not a sold book, a connection
+gap. Account 1 (margin, live MCP) = the 2 LEAPs only. Account 2 (equities:
+HIMS/NOW/HOOD/SOFI/ORCL) is not reachable via this session's Robinhood
+connection; its figures now live in `portfolio.yaml` (gitignored — real
+financial data) carried from the 2026-07-14 audit, marked to live quotes
+pulled today, except ORCL which reflects today's trade: +5 sh @ $125.00,
+31->36 shares, basis re-blended $148.00->$144.81. New dated snapshot
+`docs/portfolio-audit-2026-07-20.md`. STRATEGY.md Part 7 rewritten: the
+"zero equities" flag is gone, replaced with the reconciled combined-book
+violation table (7 positions vs 6, LEAP sleeve 35.8% vs 25%, cash ~0.2%
+vs 5%, HIMS 27.5% vs 15% — WORSE than July 14's 26.7%, pure appreciation).
+ORCL add flagged with FACTS not judgment: clears the 40% drawdown gate
+(62.2% off hybrid high) but had NO UT-buy signal firing that day — reads
+as a discretionary average-down under the v3.0 rules, not a rule-triggered
+entry (checked via backtest.fib_features directly, same code as always).
+scanner/report.py now labels positions by account (never merged) and
+computes violations on the combined book, matching the project's
+established convention. Found + fixed THREE real bugs while wiring this
+up: (1) violations_section's total_value fallback only fired when the
+grand total was exactly zero, so Account 2's equity value silently
+vanished from every % calculation whenever Account 1 already had one —
+inflated every position's reported % of book by ~3x; (2) LEAP sleeve %
+used cost basis instead of live account value (no live options mark was
+being captured) — fixed to use each pure-LEAP account's own live
+total_value; (3) held-but-not-Fib-eligible positions (HOOD) and
+held-but-outside-the-current-quality-gate positions (HIMS, SOFI — smaller
+caps that no longer clear $10B+/profitability) now get clear explanatory
+notes instead of a raw NaN or a misleading "not found" error.
+
+T2 — Built `reports/results_dashboard.html`, self-contained (inline CSS/JS,
+Chart.js via CDN, all data embedded — no external calls, renders on
+desktop + phone). Reconstructed real equity curves via
+`scripts/generate_dashboard_data.py` (winning cell daily/weekly, 0.9-floor
+exit, one continuous full-span run — the ablation only stored window
+summary stats, not raw curves) -> `reports/dashboard_data.json`. All 6
+required sections: equity curves (strategy / strategy-with-SPY-idle-cash /
+SPY buy-hold, vault boundary marked), verdict panel (pre-vault + vault
+stats separately, plain pill verdict), 3-way exit-ablation comparison
+table (winner highlighted, latch's $77k give-back shown), The Gap
+visualization (0 for the winner in this sample — flagged as unlikely to
+stay 0 on a larger universe), sortable 22-row trade log ("kind" substituted
+for "account" since backtest trades aren't tied to a real brokerage
+account — flagged, not silently omitted), verbatim caveat banner. Sent to
+the owner for visual sign-off before finalizing.
+
+PLAN.md notes the below-0.5 latch refinement as PARKED, not queued —
+only build if explicitly asked, since the 3-way ablation already retired
+the latch concept outright.
+
+73 tests green throughout (no new tests needed — this was records +
+visualization, not new signal logic; existing scanner tests updated for
+the two-account signature change).
+
+LAST_COMMIT: 02b59e65f3b033b167b7851aa600a5f23368fb0b
+---
+
+---
 ## 2026-07-20 — HANDOFF
 LAST_COMMIT: 0a6adec
 SNAPSHOT: Fib strategy promoted to official (STRATEGY.md v3.0), final exit ablation run (plain 0.9-floor wins, latch design rejected), live scanner scaffolded and run against real Robinhood accounts. 73 tests green.

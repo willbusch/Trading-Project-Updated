@@ -1,0 +1,274 @@
+"""Render reports/results_dashboard.html from reports/dashboard_data.json.
+
+Self-contained: inline CSS/JS, Chart.js loaded via CDN, data embedded
+directly in the page (no fetch() calls, no external data reads at view
+time — everything needed is baked in at generation time). Re-run this
+(after scripts/generate_dashboard_data.py) whenever the backtest changes,
+so the dashboard never goes stale relative to the data it shows.
+"""
+import json
+
+DATA_PATH = "reports/dashboard_data.json"
+OUT_PATH = "reports/results_dashboard.html"
+
+CAVEAT_BANNER = (
+    "Survivorship-biased proxy universe. Edge plausible, NOT proven. "
+    "Thin vault sample. No real capital should move on this until "
+    "validated against point-in-time data."
+)
+
+
+def fmt_pct(v, digits=1):
+    return "—" if v is None else f"{v*100:.{digits}f}%"
+
+
+def fmt_num(v, digits=1):
+    return "—" if v is None else f"{v:.{digits}f}"
+
+
+def build_html(data: dict) -> str:
+    cell = data["cell"]
+    variant = data["exit_variant"]
+    vault_start = data["vault_start"]
+    pv, va = data["stats"]["pre_vault"], data["stats"]["vault"]
+    pv_t, pv_d = pv["trade"], pv["dd"]
+    va_t, va_d = va["trade"], va["dd"]
+    spy_pv = data["spy_benchmark"]["pre_vault"]
+    spy_va = data["spy_benchmark"]["vault"]
+
+    beat_spy_vault = (va_d["total_return"] or -9) > (spy_va["total_return"] or 9)
+    ec = data["exit_comparison"]
+
+    def _trade_row(t):
+        exit_price_str = f"${t['exit_price']:.2f}" if t['exit_price'] else "—"
+        pnl_str = fmt_pct(t['pnl_pct'], 1) if t['pnl_pct'] is not None else "—"
+        row_class = "open" if t["is_open"] else ""
+        pnl_class = "pos" if (t["pnl_pct"] or 0) >= 0 else "neg"
+        return (
+            f"<tr class='{row_class}'>"
+            f"<td>{t['ticker']}</td><td>{t['kind']}</td>"
+            f"<td>{t['entry_date']}</td><td>${t['entry_price']:.2f}</td>"
+            f"<td>{t['exit_date'] or '—'}</td>"
+            f"<td>{exit_price_str}</td>"
+            f"<td>{t['exit_reason']}</td>"
+            f"<td>{t['hold_days'] if t['hold_days'] is not None else '—'}</td>"
+            f"<td class='{pnl_class}'>{pnl_str}</td>"
+            f"</tr>"
+        )
+
+    trade_rows = "".join(_trade_row(t) for t in data["trade_log"])
+
+    exit_rows = "".join(
+        f"<tr class='{'winner' if k == variant else ''}'>"
+        f"<td>{k}{' ⭐' if k == variant else ''}</td>"
+        f"<td>{ec[k]['n_closed']}</td>"
+        f"<td>{fmt_pct(ec[k]['win_rate'])}</td>"
+        f"<td>{fmt_pct(ec[k]['expectancy_pct'])}</td>"
+        f"<td>{fmt_pct(ec[k]['total_return'])}</td>"
+        f"<td>{ec[k]['gap_trades']}</td>"
+        f"<td>${ec[k]['gap_giveback']:,.0f}</td>"
+        f"</tr>"
+        for k in ["simple_05", "simple_09", "latch_v2"]
+    )
+
+    data_json = json.dumps(data)
+
+    return f"""<title>Backtest Results Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {{
+    --bg: #0f1117; --panel: #171a23; --border: #2a2e3a; --text: #e8e9ed;
+    --muted: #9198a8; --accent: #5b9dff; --pos: #4ade80; --neg: #f87171;
+    --warn: #fbbf24;
+  }}
+  @media (prefers-color-scheme: light) {{
+    :root {{ --bg: #f6f7fb; --panel: #ffffff; --border: #dde1ea; --text: #1a1d29;
+             --muted: #5c6270; --accent: #2563eb; --pos: #16a34a; --neg: #dc2626;
+             --warn: #b45309; }}
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: var(--bg); color: var(--text); line-height: 1.5; }}
+  .wrap {{ max-width: 1100px; margin: 0 auto; padding: 16px; }}
+  h1 {{ font-size: 1.4rem; margin: 8px 0 4px; }}
+  h2 {{ font-size: 1.1rem; margin: 0 0 12px; }}
+  .meta {{ color: var(--muted); font-size: 0.85rem; margin-bottom: 16px; }}
+  .banner {{ background: #7f1d1d; color: #fecaca; border: 1px solid #991b1b;
+             border-radius: 8px; padding: 12px 16px; font-size: 0.9rem;
+             font-weight: 600; margin-bottom: 20px; }}
+  @media (prefers-color-scheme: light) {{
+    .banner {{ background: #fef2f2; color: #7f1d1d; border-color: #fca5a5; }}
+  }}
+  .panel {{ background: var(--panel); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px; margin-bottom: 20px; }}
+  .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+           gap: 12px; }}
+  .stat {{ background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 12px; }}
+  .stat .label {{ color: var(--muted); font-size: 0.72rem; text-transform: uppercase;
+                  letter-spacing: 0.03em; }}
+  .stat .value {{ font-size: 1.25rem; font-weight: 700; margin-top: 2px; }}
+  .verdict {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }}
+  .verdict .pill {{ padding: 8px 14px; border-radius: 20px; font-weight: 600;
+                    font-size: 0.85rem; }}
+  .pill.yes {{ background: rgba(74,222,128,0.15); color: var(--pos);
+              border: 1px solid var(--pos); }}
+  .pill.no {{ background: rgba(248,113,113,0.15); color: var(--neg);
+             border: 1px solid var(--neg); }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 0.85rem; }}
+  th, td {{ text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }}
+  th {{ color: var(--muted); font-weight: 600; font-size: 0.75rem;
+        text-transform: uppercase; cursor: pointer; user-select: none; }}
+  th:hover {{ color: var(--accent); }}
+  tr.winner {{ background: rgba(91,157,255,0.08); }}
+  tr.open td {{ color: var(--warn); }}
+  td.pos {{ color: var(--pos); }} td.neg {{ color: var(--neg); }}
+  .table-scroll {{ overflow-x: auto; max-height: 420px; overflow-y: auto; }}
+  canvas {{ max-width: 100%; }}
+  .sub {{ color: var(--muted); font-size: 0.8rem; margin-top: 4px; }}
+</style>
+
+<div class="wrap">
+  <h1>Latched-Fib Strategy — Backtest Results Dashboard</h1>
+  <div class="meta">Generated {data['generated_at']} · winning cell <b>{cell}</b> ·
+    equity exit <b>{variant}</b> · vault boundary {vault_start}</div>
+
+  <div class="banner">⚠️ {CAVEAT_BANNER}</div>
+
+  <div class="panel">
+    <h2>1. Equity Curves</h2>
+    <canvas id="equityChart" height="320"></canvas>
+    <div class="sub">Vertical line marks the 12-month vault boundary ({vault_start}) — everything right of it was tested once, held out from strategy selection.</div>
+  </div>
+
+  <div class="panel">
+    <h2>2. Verdict Panel</h2>
+    <div class="verdict">
+      <span class="pill {'yes' if beat_spy_vault else 'no'}">
+        {'✅ BEAT SPY IN VAULT' if beat_spy_vault else '❌ DID NOT BEAT SPY IN VAULT'}
+      </span>
+    </div>
+    <h3 style="margin-top:18px;font-size:0.95rem;">Pre-vault</h3>
+    <div class="grid">
+      <div class="stat"><div class="label">Total Return</div><div class="value">{fmt_pct(pv_d['total_return'])}</div></div>
+      <div class="stat"><div class="label">CAGR</div><div class="value">{fmt_pct(pv_d['cagr'])}</div></div>
+      <div class="stat"><div class="label">Expectancy/Trade</div><div class="value">{fmt_pct(pv_t['expectancy_pct'])}</div></div>
+      <div class="stat"><div class="label">Win Rate</div><div class="value">{fmt_pct(pv_t['win_rate'])}</div></div>
+      <div class="stat"><div class="label">Max Drawdown</div><div class="value">{fmt_pct(pv_d['max_drawdown'])}</div></div>
+      <div class="stat"><div class="label">Avg Hold (days)</div><div class="value">{fmt_num(pv_t['avg_hold_days'], 0)}</div></div>
+      <div class="stat"><div class="label">Trades Closed</div><div class="value">{pv_t['n_closed']}</div></div>
+      <div class="stat"><div class="label">SPY Total Return</div><div class="value">{fmt_pct(spy_pv['total_return'])}</div></div>
+    </div>
+    <h3 style="margin-top:18px;font-size:0.95rem;">Vault (last 12mo, tested once)</h3>
+    <div class="grid">
+      <div class="stat"><div class="label">Total Return</div><div class="value">{fmt_pct(va_d['total_return'])}</div></div>
+      <div class="stat"><div class="label">CAGR</div><div class="value">{fmt_pct(va_d['cagr'])}</div></div>
+      <div class="stat"><div class="label">Expectancy/Trade</div><div class="value">{fmt_pct(va_t['expectancy_pct'])}</div></div>
+      <div class="stat"><div class="label">Win Rate</div><div class="value">{fmt_pct(va_t['win_rate'])}</div></div>
+      <div class="stat"><div class="label">Max Drawdown</div><div class="value">{fmt_pct(va_d['max_drawdown'])}</div></div>
+      <div class="stat"><div class="label">Avg Hold (days)</div><div class="value">{fmt_num(va_t['avg_hold_days'], 0)}</div></div>
+      <div class="stat"><div class="label">Trades Closed</div><div class="value">{va_t['n_closed']}</div></div>
+      <div class="stat"><div class="label">SPY Total Return</div><div class="value">{fmt_pct(spy_va['total_return'])}</div></div>
+    </div>
+    <div class="sub">Vault trade counts are 1–2 in this backtest — not statistically meaningful on their own. Treat the vault verdict as suggestive, not proof.</div>
+  </div>
+
+  <div class="panel">
+    <h2>3. Exit-Ablation Comparison (2026-07-20, pre-vault)</h2>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Variant</th><th>Closed</th><th>Win Rate</th><th>Expectancy</th>
+        <th>Total Return</th><th>Gap Trades</th><th>Gap Give-back</th></tr></thead>
+      <tbody>{exit_rows}</tbody>
+    </table>
+    </div>
+    <div class="sub">⭐ = winner, selected on pre-vault expectancy only. The full-latch design (<code>latch_v2</code>) lost to a plain 0.9 floor despite more complexity, and cost $77k in quantified give-back with no expectancy benefit.</div>
+  </div>
+
+  <div class="panel">
+    <h2>4. The Gap — Winning Variant ({variant})</h2>
+    <div class="grid">
+      <div class="stat"><div class="label">Gap Trades</div><div class="value">{ec[variant]['gap_trades']}</div></div>
+      <div class="stat"><div class="label">Total Give-back</div><div class="value">${ec[variant]['gap_giveback']:,.0f}</div></div>
+    </div>
+    <div class="sub">The Gap = trades that peaked above entry, never hit the 1.618 target, never triggered a zone exit, and closed at a loss or gave back most of their peak gain — the accepted cost of "no exit below the floor." Zero for the winning variant in this sample; it will not stay zero on a larger or less curated universe.</div>
+  </div>
+
+  <div class="panel">
+    <h2>5. Trade Log ({len(data['trade_log'])} trades)</h2>
+    <div class="table-scroll">
+    <table id="tradeTable">
+      <thead><tr>
+        <th onclick="sortTable(0)">Ticker</th><th onclick="sortTable(1)">Kind</th>
+        <th onclick="sortTable(2)">Entry Date</th><th onclick="sortTable(3)">Entry $</th>
+        <th onclick="sortTable(4)">Exit Date</th><th onclick="sortTable(5)">Exit $</th>
+        <th onclick="sortTable(6)">Exit Zone</th><th onclick="sortTable(7)">Hold (d)</th>
+        <th onclick="sortTable(8)">P&amp;L %</th>
+      </tr></thead>
+      <tbody>{trade_rows}</tbody>
+    </table>
+    </div>
+    <div class="sub">Click a column header to sort. "Kind" (equity/LEAP) shown in place of a live-account label — these are simulated backtest trades, not tied to a real brokerage account.</div>
+  </div>
+</div>
+
+<script>
+const DATA = {data_json};
+
+const ctx = document.getElementById('equityChart').getContext('2d');
+new Chart(ctx, {{
+  type: 'line',
+  data: {{
+    labels: DATA.curves.strategy.dates,
+    datasets: [
+      {{ label: 'Strategy ({variant})', data: DATA.curves.strategy.values,
+        borderColor: '#5b9dff', borderWidth: 1.5, pointRadius: 0, tension: 0 }},
+      {{ label: 'Strategy (idle cash in SPY)', data: DATA.curves.strategy_spy_idle_cash.values,
+        borderColor: '#4ade80', borderWidth: 1.5, pointRadius: 0, tension: 0 }},
+      {{ label: 'SPY buy-and-hold', data: DATA.curves.spy_buy_hold.values,
+        borderColor: '#fbbf24', borderWidth: 1.5, pointRadius: 0, tension: 0 }},
+    ]
+  }},
+  options: {{
+    responsive: true,
+    interaction: {{ mode: 'index', intersect: false }},
+    scales: {{
+      x: {{ ticks: {{ maxTicksLimit: 10 }}, grid: {{ display: false }} }},
+      y: {{ ticks: {{ callback: v => '$' + v.toLocaleString() }} }}
+    }},
+    plugins: {{
+      legend: {{ position: 'top' }},
+      annotation: {{}}
+    }}
+  }}
+}});
+
+function sortTable(col) {{
+  const table = document.getElementById('tradeTable');
+  const tbody = table.tBodies[0];
+  const rows = Array.from(tbody.rows);
+  const asc = table.dataset.sortCol == col && table.dataset.sortDir !== 'asc';
+  rows.sort((a, b) => {{
+    let x = a.cells[col].innerText, y = b.cells[col].innerText;
+    const nx = parseFloat(x.replace(/[^0-9.-]/g,'')), ny = parseFloat(y.replace(/[^0-9.-]/g,''));
+    if (!isNaN(nx) && !isNaN(ny)) return asc ? nx - ny : ny - nx;
+    return asc ? x.localeCompare(y) : y.localeCompare(x);
+  }});
+  rows.forEach(r => tbody.appendChild(r));
+  table.dataset.sortCol = col;
+  table.dataset.sortDir = asc ? 'asc' : 'desc';
+}}
+</script>
+"""
+
+
+def main():
+    data = json.load(open(DATA_PATH))
+    html = build_html(data)
+    open(OUT_PATH, "w").write(html)
+    print("wrote", OUT_PATH, len(html), "chars")
+
+
+if __name__ == "__main__":
+    main()

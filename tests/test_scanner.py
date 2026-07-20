@@ -54,23 +54,29 @@ def test_open_positions_uses_leap_gate_for_leap_holdings(tmp_path, monkeypatch):
     live_path = tmp_path / "live_positions_snapshot.json"
     live_path.write_text(json.dumps(snap))
     monkeypatch.setattr("scanner.report.LIVE_POSITIONS_PATH", live_path)
+    # isolate from any real portfolio.yaml in the repo root
+    monkeypatch.setattr("scanner.report.PORTFOLIO_YAML_PATH", tmp_path / "nonexistent.yaml")
 
     cfg = load_config()
     rows, _ = _latest_frames(cfg, ["MSFT"], frozenset({"MSFT"}))
     result = open_positions_section(cfg, rows, "simple_09")
     assert result["available"]
-    pos = result["positions"][0]
+    pos = result["by_account"]["account_1"]["positions"][0]
     assert "error" not in pos
     frac = pos["fib_fraction"]
     assert frac == frac, "fib_fraction is NaN — the LEAP-gate bug regressed"
 
 
 @pytest.mark.skipif(not CACHE.exists(), reason="requires cached data")
-def test_render_report_runs_without_live_positions_file():
-    """The report must degrade gracefully (not crash) when no live
-    positions snapshot exists yet — the common state before the first
-    manual refresh."""
+def test_render_report_runs_without_live_positions_file(tmp_path, monkeypatch):
+    """The report must degrade gracefully (not crash) when NEITHER account
+    source exists yet — the common state before the first manual refresh.
+    Isolated from any real portfolio.yaml / live_positions_snapshot.json
+    in the repo (both may exist and contain real financial data)."""
     from scanner.report import render_report
+
+    monkeypatch.setattr("scanner.report.LIVE_POSITIONS_PATH", tmp_path / "nonexistent.json")
+    monkeypatch.setattr("scanner.report.PORTFOLIO_YAML_PATH", tmp_path / "nonexistent.yaml")
 
     cfg = load_config()
     out = render_report(cfg)

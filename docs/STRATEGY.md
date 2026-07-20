@@ -240,41 +240,36 @@ new entries from digging the hole deeper while a position is frozen.
 
 ## PART 7 — CURRENT BOOK vs. THIS STRATEGY
 
-### 🔴 Live pull, 2026-07-20 (scanner scaffold's first real run — supersedes the stale July 14 manual audit below)
+### Reconciled, 2026-07-20 — two accounts, not one
 
-Pulled directly from the linked Robinhood accounts (all 3 checked; only
-the default margin account, ...803, holds anything):
+The 2026-07-19 "zero equities" scare was a connection gap, not a sold
+book: the equity sleeve lives in a **second Robinhood account this
+session's connection cannot reach.** Full detail, per-position figures,
+and the ORCL average-down write-up: `docs/portfolio-audit-2026-07-20.md`
+and `portfolio.yaml`. Account 1 (LEAPs) was pulled live; Account 2
+(equities) is carried from the 2026-07-14 audit, marked to live quotes,
+except ORCL, which reflects today's trade.
 
-| Violation | Live (2026-07-20) | Required |
-|---|---|---|
-| LEAP slots | **2 held** (NFLX, MSFT) | **1 max** |
-| LEAP sleeve | **83.7%** of this account | **20% max** |
-| Cash | **0.0%** | **5% min** |
-| **NFLX LEAP** | **Still held** | **Ineligible — fails the $500B rule outright** |
-| Equity positions | **None found** in any of the 3 linked accounts | 5 slots available |
+| Rule (v3.0) | Limit | Actual (combined book) | Status |
+|---|---|---|---|
+| Total positions | 6 (5 equity + 1 LEAP) | **7** (5 equity + 2 LEAP) | ❌ VIOLATED — LEAP slot |
+| Max single equity position | 15% | **HIMS at 27.5%** | ❌ VIOLATED (worse than July 14's 26.7% — pure appreciation) |
+| LEAP sleeve | 25% | **35.8%** | ❌ VIOLATED |
+| Min cash floor | 5% | **~0.2%** (estimated — see audit doc) | ❌ VIOLATED (badly) |
+| **NFLX LEAP** | Ineligible — fails $500B rule | **Still held** | ❌ VIOLATED |
 
-**🔴 Material discrepancy from the July 14 audit below: no equity
-positions (HIMS, HOOD, SOFI, NOW) were found anywhere.** Either they were
-sold since July 14 and the audit was never updated, or they're held in an
-account this session's Robinhood connection doesn't see. **This needs the
-owner's confirmation before Phase 0 proceeds** — reconciling against a
-book that may not reflect reality would be worse than not reconciling at
-all. Full detail: `reports/live_scan_2026-07-20.md`.
+**🔴 Today's change: ORCL added to, not fixed.** +5 shares @ $125.00,
+averaging the 31-share $148.00 lot down to a $144.81 blended basis on 36
+shares — on the book's only losing position. Checked against the actual
+v3.0 entry rules (same code the backtest uses): ORCL clears the 40%
+drawdown gate (62.2% off its hybrid 2yr high) but had **no UT-Bot buy
+signal firing** that day. **Gate cleared, trigger didn't — this reads as
+a discretionary average-down, not a rule-triggered entry.** Reported as
+fact; the owner decides what it means. Full mechanics in the audit doc.
 
-### July 14, 2026 audit (manual, pre-scanner — kept for history, not current)
-
-| Violation | Then | Required |
-|---|---|---|
-| Position count | 7 | 6 |
-| LEAP sleeve | 38% | 20% |
-| Cash | 1.5% | 5% |
-| HIMS size | 26.7% | 15% |
-| **NFLX LEAP** | **Held** | **Ineligible — fails the $500B rule outright** |
-
-**None of these have been fixed yet.** Phase 0 ("fix the book") remains
-untouched — see `PLAN.md`. **Reconcile against the live 2026-07-20 pull
-above, not this table** — it's stale and the two disagree on whether
-equity positions even still exist.
+**Every rule in the book is still broken, and nothing has been fixed
+since July 14.** Phase 0 ("fix the book") remains untouched — see
+`PLAN.md`.
 
 ---
 

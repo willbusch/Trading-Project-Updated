@@ -68,6 +68,17 @@ source. Until then, effort moves to Phase 0 (fix the book) and Phase 1
 (the live scanner) — both of which use the *current* strategy definition
 regardless of the unresolved edge question.
 
+**PARKED — do not build without an explicit owner ask:** a below-0.5
+latch refinement (armed-above-0.5 required; a UT sell below 0.5 exits
+only if the trade was already armed above 0.5; a trade that never armed
+above 0.5 holds through). The 2026-07-20 three-way ablation already
+retired the latch concept entirely — `latch_v2`'s full latch design lost
+to a plain 0.9 floor and cost $77,064 in quantified give-back with zero
+expectancy benefit (`reports/fib_final_ablation.md`). This refinement is
+only worth building if the owner explicitly wants to test whether the
+below-0.5 tweak specifically changes that verdict — it is not queued as
+follow-up work on its own.
+
 ---
 
 ## FULL-UNIVERSE RUN — 2026-07-19 (200-name proxy, edge-verdict attempt)

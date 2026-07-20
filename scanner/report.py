@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from backtest.fib_exit import LeapSimpleExit
 from backtest.fib_features import build_fib_frame
@@ -26,7 +27,29 @@ from backtest.fib_universe import gate_of, load_universe
 from screener.config import load_config
 
 ENTRY_TF, EXIT_TF = "daily", "weekly"
-LIVE_POSITIONS_PATH = Path("data/live_positions_snapshot.json")
+LIVE_POSITIONS_PATH = Path("data/live_positions_snapshot.json")   # Account 1 (MCP-reachable)
+PORTFOLIO_YAML_PATH = Path("portfolio.yaml")                      # both accounts, manually maintained
+
+
+def _load_two_account_book():
+    """Two accounts, never merged for display. Account 1 prefers the
+    live MCP snapshot when present (fresher); portfolio.yaml is the
+    fallback / manually-reconciled source for whichever account this
+    session's MCP connection can't reach (Account 2, currently)."""
+    accounts = {}
+    if PORTFOLIO_YAML_PATH.exists():
+        doc = yaml.safe_load(PORTFOLIO_YAML_PATH.read_text())
+        for key in ("account_1", "account_2"):
+            if key in doc:
+                accounts[key] = doc[key]
+    if LIVE_POSITIONS_PATH.exists():
+        live = json.loads(LIVE_POSITIONS_PATH.read_text())
+        accounts["account_1"] = {
+            "label": "Account 1 (live MCP pull)",
+            "cash": live.get("cash", 0), "total_value": live.get("total_equity", 0),
+            "holdings": live.get("holdings", []),
+        }
+    return accounts
 
 
 def _latest_frames(cfg, tickers, leap_tickers):
@@ -59,85 +82,136 @@ def eligible_and_firing(rows: dict):
 
 
 def open_positions_section(cfg, rows: dict, exit_variant: str):
-    """Section 3. Reads data/live_positions_snapshot.json (written by
-    scanner.refresh.save_live_positions). Anchors (dip_low, two_yr_high)
-    are looked up as of the position's recorded entry_date when known —
-    same anchors the backtest would have frozen at entry. If entry_date is
-    missing from the API response, falls back to TODAY's anchor and labels
-    the row APPROXIMATE rather than silently treating it as exact."""
-    if not LIVE_POSITIONS_PATH.exists():
-        return {"available": False, "positions": [],
-                "note": "No live_positions_snapshot.json — run scanner.refresh first."}
+    """Section 3. Reads the two-account book (Account 1 live via MCP when
+    available, Account 2 from portfolio.yaml — see _load_two_account_book).
+    Positions from each account are kept in separate groups, never merged.
+    Anchors (dip_low, two_yr_high) are looked up as of the position's
+    recorded entry_date when known — same anchors the backtest would have
+    frozen at entry. If entry_date is missing, falls back to TODAY's
+    anchor and labels the row APPROXIMATE rather than silently treating it
+    as exact."""
+    accounts = _load_two_account_book()
+    if not accounts:
+        return {"available": False, "by_account": {},
+                "note": "No portfolio.yaml or live_positions_snapshot.json found."}
 
-    snap = json.loads(LIVE_POSITIONS_PATH.read_text())
-    out = []
-    for h in snap.get("holdings", []):
-        t = h["ticker"]
-        if t not in rows:
-            out.append({"ticker": t, "error": "not in current universe scan"})
-            continue
-        # BUG FIX (2026-07-20, found live-testing this scaffold): must use
-        # the POSITION's own kind, not an empty leap_tickers set — a LEAP
-        # held here uses the 25% gate for its anchor, not the 40% equity
-        # gate, or its dip_low never accumulates (NaN fraction downstream).
-        gate = 0.25 if h["kind"] == "leap" else 0.40
-        approximate = h.get("entry_date") is None
-        try:
-            frame = build_fib_frame(t, gate, ENTRY_TF, EXIT_TF, cfg, use_hybrid=True)
-        except Exception as e:
-            out.append({"ticker": t, "error": f"{type(e).__name__}: {e}"})
-            continue
-        if approximate or pd.Timestamp(h["entry_date"]) not in frame.index:
-            anchor_row = frame.iloc[-1]
-            approximate = True
-        else:
-            anchor_row = frame.loc[pd.Timestamp(h["entry_date"])]
+    by_account = {}
+    for acct_key, acct in accounts.items():
+        out = []
+        for h in acct.get("holdings", []):
+            t = h["ticker"]
+            if t not in rows:
+                out.append({"ticker": t, "error":
+                           "does not currently clear the quality gate "
+                           "($10B+ cap / positive margin / liquidity) — "
+                           "held, but outside the scanned universe"})
+                continue
+            # BUG FIX (2026-07-20, found live-testing this scaffold): must
+            # use the POSITION's own kind, not an empty leap_tickers set —
+            # a LEAP held here uses the 25% gate for its anchor, not the
+            # 40% equity gate, or its dip_low never accumulates (NaN
+            # fraction downstream).
+            gate = 0.25 if h["kind"] == "leap" else 0.40
+            entry_date = h.get("entry_date")
+            approximate = entry_date is None
+            try:
+                frame = build_fib_frame(t, gate, ENTRY_TF, EXIT_TF, cfg, use_hybrid=True)
+            except Exception as e:
+                out.append({"ticker": t, "error": f"{type(e).__name__}: {e}"})
+                continue
+            if approximate or pd.Timestamp(entry_date) not in frame.index:
+                anchor_row = frame.iloc[-1]
+                approximate = True
+            else:
+                anchor_row = frame.loc[pd.Timestamp(entry_date)]
 
-        from backtest.drawdown_gate import price_fraction
-        dip_low, two_yr_high = anchor_row["dip_low"], anchor_row["high_2yr"]
-        current_close = rows[t]["Close"]
-        frac = price_fraction(current_close, dip_low, two_yr_high)
-        machine = (LeapSimpleExit(dip_low, two_yr_high) if h["kind"] == "leap"
-                   else EQUITY_EXIT_VARIANTS[exit_variant](dip_low, two_yr_high))
-        weekly_ut_sell_active = bool(rows[t]["exit_ut_sell"])
-        out.append({
-            "ticker": t, "kind": h["kind"], "fib_fraction": frac,
-            "levels": machine.levels, "weekly_ut_sell_active": weekly_ut_sell_active,
-            "anchor_approximate": approximate,
-        })
-    return {"available": True, "positions": out}
+            from backtest.drawdown_gate import price_fraction
+            dip_low, two_yr_high = anchor_row["dip_low"], anchor_row["high_2yr"]
+            if dip_low != dip_low:   # NaN: no eligible-gate episode to anchor to
+                out.append({"ticker": t, "kind": h["kind"], "fib_fraction": None,
+                           "note": "not currently in (or recently in) a "
+                                   "Fib-eligible drawdown episode — no anchor "
+                                   "to measure against; likely held under "
+                                   "the retired pre-Fib rules"})
+                continue
+            current_close = rows[t]["Close"]
+            frac = price_fraction(current_close, dip_low, two_yr_high)
+            machine = (LeapSimpleExit(dip_low, two_yr_high) if h["kind"] == "leap"
+                       else EQUITY_EXIT_VARIANTS[exit_variant](dip_low, two_yr_high))
+            weekly_ut_sell_active = bool(rows[t]["exit_ut_sell"])
+            out.append({
+                "ticker": t, "kind": h["kind"], "fib_fraction": frac,
+                "levels": machine.levels, "weekly_ut_sell_active": weekly_ut_sell_active,
+                "anchor_approximate": approximate,
+            })
+        by_account[acct_key] = {"label": acct.get("label", acct_key), "positions": out}
+    return {"available": True, "by_account": by_account}
 
 
-def violations_section(cfg, positions_result: dict):
-    """Section 4: live book vs STRATEGY.md's reconciled targets."""
-    if not LIVE_POSITIONS_PATH.exists():
+def violations_section(cfg, accounts: dict):
+    """Section 4: live book vs STRATEGY.md's reconciled targets, computed
+    on the COMBINED book across both accounts (matches this project's
+    established convention — the original portfolio audit treated total
+    exposure as one book even though it spans two real accounts). Position
+    values use LIVE prices where available (portfolio.yaml's live_price),
+    falling back to cost basis when no live mark is recorded."""
+    if not accounts:
         return {"available": False, "violations": [],
-                "note": "No live_positions_snapshot.json — run scanner.refresh first."}
-    snap = json.loads(LIVE_POSITIONS_PATH.read_text())
-    equity_total = snap.get("total_equity", 0)
-    holdings = snap.get("holdings", [])
-    violations = []
+                "note": "No portfolio.yaml or live_positions_snapshot.json found."}
 
-    n_equity = sum(1 for h in holdings if h["kind"] == "equity")
-    n_leap = sum(1 for h in holdings if h["kind"] == "leap")
+    def mark(h):
+        return h.get("live_price", h["avg_entry_price"])
+
+    all_holdings = []
+    total_cash = 0.0
+    total_value = 0.0
+    total_leap_value = 0.0
+    for acct in accounts.values():
+        acct_cash = acct.get("cash", 0) or 0
+        acct_holdings = acct.get("holdings", [])
+        # BUG FIX (2026-07-20): each account must fall back to its OWN
+        # derived value independently — a global "if total_value==0" check
+        # silently dropped Account 2's equity value whenever Account 1
+        # already had an explicit total_value, understating the combined
+        # book and wildly overstating every position's % of book.
+        acct_value = acct.get("total_value") or (
+            acct_cash + sum(h["quantity"] * mark(h) for h in acct_holdings)
+        )
+        total_cash += acct_cash
+        total_value += acct_value
+        all_holdings.extend(acct_holdings)
+
+        # BUG FIX (2026-07-20): LEAP dollar exposure must use the LIVE
+        # account value, not quantity*avg_entry_price (cost basis) — we
+        # don't have a live per-contract options mark, but when an
+        # account is ENTIRELY leaps, its own total_value already IS the
+        # live valuation. Falls back to cost basis (flagged as an
+        # approximation) only for accounts we can't value this way.
+        acct_leaps = [h for h in acct_holdings if h["kind"] == "leap"]
+        if acct_leaps and len(acct_leaps) == len(acct_holdings) and acct.get("total_value"):
+            total_leap_value += acct["total_value"]
+        else:
+            total_leap_value += sum(h["quantity"] * mark(h) for h in acct_leaps)
+
+    violations = []
+    n_equity = sum(1 for h in all_holdings if h["kind"] == "equity")
+    n_leap = sum(1 for h in all_holdings if h["kind"] == "leap")
     if n_equity > cfg["sizing"]["equity_slots"]:
         violations.append(f"Equity slots: {n_equity} held vs {cfg['sizing']['equity_slots']} max")
     if n_leap > cfg["sizing"]["leap_slots"]:
         violations.append(f"LEAP slots: {n_leap} held vs {cfg['sizing']['leap_slots']} max")
 
-    if equity_total > 0:
-        cash_pct = snap.get("cash", 0) / equity_total
+    if total_value > 0:
+        cash_pct = total_cash / total_value
         if cash_pct < cfg["sizing"]["min_cash_floor_pct"]:
             violations.append(f"Cash floor: {cash_pct:.1%} vs {cfg['sizing']['min_cash_floor_pct']:.0%} min")
-        leap_pct = sum(
-            h["quantity"] * h["avg_entry_price"] for h in holdings if h["kind"] == "leap"
-        ) / equity_total
+        leap_pct = total_leap_value / total_value
         if leap_pct > cfg["leap"]["sleeve_cap_pct_of_book"]:
             violations.append(f"LEAP sleeve: {leap_pct:.1%} vs {cfg['leap']['sleeve_cap_pct_of_book']:.0%} max")
-        for h in holdings:
+        for h in all_holdings:
             if h["kind"] != "equity":
                 continue
-            pos_pct = h["quantity"] * h["avg_entry_price"] / equity_total
+            pos_pct = h["quantity"] * mark(h) / total_value
             if pos_pct > cfg["sizing"]["max_position_pct_of_book"]:
                 violations.append(
                     f"{h['ticker']} size: {pos_pct:.1%} vs "
@@ -152,7 +226,8 @@ def render_report(cfg=None, exit_variant: str = "simple_09") -> str:
     rows, failed = _latest_frames(cfg, tickers, leap_tickers)
     eligible, firing = eligible_and_firing(rows)
     positions = open_positions_section(cfg, rows, exit_variant)
-    violations = violations_section(cfg, positions)
+    accounts = _load_two_account_book()
+    violations = violations_section(cfg, accounts)
 
     L = [f"# Daily Scan — {pd.Timestamp.now().date()}", "",
         "> Decision-support only. Recommends; you execute. No orders placed by this tool.", ""]
@@ -175,25 +250,34 @@ def render_report(cfg=None, exit_variant: str = "simple_09") -> str:
     else:
         L.append("*None firing today.*")
 
-    L.append("\n## 3. OPEN POSITIONS\n")
+    L.append("\n## 3. OPEN POSITIONS (by account — never merged)\n")
     if not positions["available"]:
         L.append(f"*{positions['note']}*")
-    elif not positions["positions"]:
+    elif not positions["by_account"]:
         L.append("*No open positions on file.*")
     else:
-        L.append("| Ticker | Kind | Fib fraction | Next level up | Weekly UT sell active | Anchor |")
-        L.append("|---|---|---|---|---|---|")
-        for p in positions["positions"]:
-            if "error" in p:
-                L.append(f"| {p['ticker']} | — | — | — | — | {p['error']} |")
+        for acct_key, acct in positions["by_account"].items():
+            L.append(f"### {acct['label']}\n")
+            if not acct["positions"]:
+                L.append("*No positions.*\n")
                 continue
-            nxt = min((lv for f, lv in p["levels"].items() if f > p["fib_fraction"]), default=None)
-            anchor_note = "APPROXIMATE (today)" if p["anchor_approximate"] else "exact (entry date)"
-            L.append(f"| {p['ticker']} | {p['kind']} | {p['fib_fraction']:.2f} | "
-                     f"{nxt if nxt is None else round(nxt,2)} | "
-                     f"{'YES' if p['weekly_ut_sell_active'] else 'no'} | {anchor_note} |")
+            L.append("| Ticker | Kind | Fib fraction | Next level up | Weekly UT sell active | Anchor |")
+            L.append("|---|---|---|---|---|---|")
+            for p in acct["positions"]:
+                if "error" in p:
+                    L.append(f"| {p['ticker']} | — | — | — | — | {p['error']} |")
+                    continue
+                if p.get("fib_fraction") is None:
+                    L.append(f"| {p['ticker']} | {p['kind']} | — | — | — | {p['note']} |")
+                    continue
+                nxt = min((lv for f, lv in p["levels"].items() if f > p["fib_fraction"]), default=None)
+                anchor_note = "APPROXIMATE (today)" if p["anchor_approximate"] else "exact (entry date)"
+                L.append(f"| {p['ticker']} | {p['kind']} | {p['fib_fraction']:.2f} | "
+                         f"{nxt if nxt is None else round(nxt,2)} | "
+                         f"{'YES' if p['weekly_ut_sell_active'] else 'no'} | {anchor_note} |")
+            L.append("")
 
-    L.append("\n## 4. VIOLATIONS (live book vs STRATEGY.md)\n")
+    L.append("\n## 4. VIOLATIONS (combined book across both accounts vs STRATEGY.md)\n")
     if not violations["available"]:
         L.append(f"*{violations['note']}*")
     elif not violations["violations"]:
