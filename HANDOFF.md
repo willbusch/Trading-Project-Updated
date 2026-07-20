@@ -54,7 +54,7 @@ the latch concept outright.
 visualization, not new signal logic; existing scanner tests updated for
 the two-account signature change).
 
-LAST_COMMIT: 02b59e65f3b033b167b7851aa600a5f23368fb0b
+LAST_COMMIT: c2cad73b0803e2331ba27d6ce31bd0ef91938bd6
 ---
 
 ---
