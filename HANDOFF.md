@@ -1,4 +1,29 @@
 ---
+## 2026-07-19 — EXECUTED (from chat): Full-universe run (200-name proxy)
+DID: Scaled Fib strategy to a 200-name universe. 4 changes: (1) latch
+DROPPED (simple equity exit now active; latch kept for reference), (2)
+HYBRID ANCHOR (504d default, ~4yr extended when peak aged out; fires on
+146/200 names), (3) quality gate = static membership in a live scanner
+list ($10B+, positive net margin, >1M vol), (4) SPY-idle-cash benchmark.
+New: fib_universe.py, scripts/ingest_universe.py, render_universe_report.py,
+data/universe_snapshot.json, hybrid_anchor_high + use_hybrid + idle_cash_spy.
+59 tests green incl. hybrid-anchor lookahead test. Ingested 190 names (100%
+coverage, 2018→2026).
+DATA REALITY: Robinhood has NO index-membership filter + only CURRENT
+fundamentals -> this is a current-membership/current-fundamentals PROXY, not
+point-in-time SPY/QQQ. Severe survivorship, flagged verbatim in report.
+Runtime forced the authorized REDUCED 4-cell set (~143s/cell).
+VERDICTS (reports/fib_universe.md): winning cell daily/weekly beat SPY in
+vault (+37.7% vs +18.4%) AND SPY-idle-cash variant (+42.0% vs +18.4%). BUT
+100% win rate every window = survivorship; vault rests on 2 trades; COVID
+cluster dominates. Honest: NOT proof of edge, clears bar barely on thin
+evidence. Leak-hunt passed (combined CAGR 11-15%).
+OPEN: real edge verdict needs point-in-time membership + historical
+fundamentals — NOT available from Robinhood; different data source required.
+LAST_COMMIT: fd4196792136ea8dcb9260c2a9292d462ba1f1e4
+---
+
+---
 ## 2026-07-19 — HANDOFF
 LAST_COMMIT: 55e141a
 SNAPSHOT: Latched-Fib strategy built + 7-cell timeframe matrix run on 12 curated names. Best cell daily/weekly does NOT beat equal-weight-buy-hold-same-names (0 vault trades vs +65%); latched does not beat simple; leak-hunt passed. A/B/C/D retired.

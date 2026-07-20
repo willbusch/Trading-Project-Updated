@@ -98,6 +98,41 @@ def test_exit_machine_is_forward_only():
     assert decisions_full[:5] == decisions_trunc
 
 
+def test_hybrid_anchor_uses_extended_high_when_504_is_stale():
+    from backtest.drawdown_gate import hybrid_anchor_high
+    n = 1100
+    close = pd.Series(
+        [200.0] + [50.0] * (n - 1),
+        index=pd.bdate_range("2020-01-01", periods=n),
+    )
+    high, extended = hybrid_anchor_high(close)
+    # deep in the depressed stretch the 504d high has decayed to 50, but the
+    # extended window still sees the 200 peak -> hybrid uses 200
+    assert high.iloc[900] == pytest.approx(200.0)
+    assert extended.iloc[900]
+    # early on, the 200 peak is still inside 504d -> not extended, high==200
+    assert not extended.iloc[400]
+
+
+def test_hybrid_anchor_is_forward_only():
+    """LOOKAHEAD TEST for CHANGE 2: the extended high at date D must equal
+    the max of close up to D only. Truncating future bars must not change
+    the anchor at any earlier date."""
+    from backtest.drawdown_gate import hybrid_anchor_high
+    import numpy as np
+    rng = np.random.default_rng(0)
+    n = 1300
+    close = pd.Series(
+        100 + np.cumsum(rng.normal(0, 1, n)),
+        index=pd.bdate_range("2019-01-01", periods=n),
+    )
+    full, _ = hybrid_anchor_high(close)
+    cut = 1000
+    trunc, _ = hybrid_anchor_high(close.iloc[:cut])
+    # anchors on the shared prefix must be identical
+    pd.testing.assert_series_equal(full.iloc[:cut], trunc, check_names=False)
+
+
 def test_stale_anchor_detection():
     # Build a series: high peak, then a long depressed stretch >504d so the
     # peak ages out of the 2yr window but stays within the 4yr window.

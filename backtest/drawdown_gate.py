@@ -45,19 +45,38 @@ def is_stale_anchor(
     """Per bar (forward-only): True when the rolling `window`-day high is
     PROVABLY stale — a higher high existed within `stale_window` days but
     OUTSIDE the `window` (so the 504-day anchor has 'forgotten' the real
-    recent peak). This is the exact HOOD/SOFI 2021-IPO-peak case: their
-    true peak aged out of the 2yr window while the name stayed depressed
-    for >2 years. Both maxima look only backward, so no lookahead.
+    recent peak). The exact HOOD/SOFI 2021-IPO-peak case. Both maxima look
+    only backward, so no lookahead.
 
-    Owner decision (2026-07-19, Option 1): entry candidates flagged stale
-    here are EXCLUDED from the headline backtest (traded only in a
-    separate both-ways diagnostic), because a stale anchor compresses the
-    Fib range and distorts every level derived from it.
-    """
+    In the 12-name round this drove Option-1 EXCLUSION. In the universe
+    round the HYBRID ANCHOR (below) instead FIXES these bars by using the
+    extended-window high, so nothing is excluded — this function now just
+    flags where the extension fires (for the frequency report)."""
     high_504 = close.rolling(window, min_periods=window).max()
     high_long = close.rolling(stale_window, min_periods=window).max()
-    # stale when a higher peak exists in the longer window than in the 2yr one
     return (high_long > high_504 + 1e-9).fillna(False)
+
+
+def hybrid_anchor_high(
+    close: pd.Series,
+    window: int = TWO_YEAR_TRADING_DAYS,
+    ext_window: int = STALE_LOOKBACK_TRADING_DAYS,
+):
+    """CHANGE 2 (universe run): 504-day rolling high by default; when a
+    name's true multi-year peak sits OUTSIDE the 504d window but within
+    ~4yr (ext_window), use the extended-lookback high instead — so young
+    post-IPO names that spent >2yr depressed get their real peak, not a
+    decayed one, without reaching to ancient irrelevant highs.
+
+    Returns (high, extended) where `extended` marks bars using the longer
+    window. Both maxima are trailing → forward-only (the extended high at
+    date D uses only close[D-ext_window+1 .. D]). Lookahead-tested.
+    """
+    high_504 = close.rolling(window, min_periods=window).max()
+    high_ext = close.rolling(ext_window, min_periods=window).max()
+    extended = (high_ext > high_504 + 1e-9).fillna(False)
+    high = high_504.where(~extended, high_ext)
+    return high, extended
 
 
 def fib_levels(dip_low: float, two_yr_high: float) -> dict:

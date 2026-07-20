@@ -83,7 +83,10 @@ def simulate_fib(
     window_label: str = "combined",
     leap_tickers: frozenset = frozenset(),
     include_stale: bool = False,          # both-ways diagnostic sets this True
-    simple_exit: bool = False,            # ablation: no latch, sell@1.618 or UT>0.5
+    simple_exit: bool = False,            # CHANGE 1: no latch, sell@1.618 or UT>0.5
+    idle_cash_spy: "pd.Series | None" = None,  # CHANGE 4: daily SPY return credited
+                                          # to idle cash (prices the cash drag; also
+                                          # realistically raises buying power)
 ) -> FibResult:
     slippage = cfg["backtest"]["slippage_pct"]
     seed_cash = cfg["backtest"]["seed_cash"] if seed_cash is None else seed_cash
@@ -208,6 +211,17 @@ def simulate_fib(
                 "dip_low": row["dip_low"],
                 "stale": bool(row["stale"]),
             }
+
+        # CHANGE 4: credit idle cash the day's SPY return before marking
+        if idle_cash_spy is not None and date in idle_cash_spy.index:
+            r_spy = idle_cash_spy.loc[date]
+            bal = state.cash.balance
+            if bal > 0 and r_spy == r_spy:
+                pnl = bal * r_spy               # SPY moves the idle-cash sleeve
+                if pnl >= 0:
+                    state.cash.deposit(date, pnl, "spy_idle_yield", "SPY")
+                else:                          # down day: |pnl| < bal, safe
+                    state.cash.withdraw(date, -pnl, "spy_idle_yield", "SPY")
 
         # 4. mark-to-market + kill switch
         state.mark_to_market(date, {t: r["Close"] for t, r in todays.items()})

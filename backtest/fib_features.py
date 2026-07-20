@@ -18,6 +18,7 @@ import pandas as pd
 from backtest.drawdown_gate import (
     dip_low_since_gate_clear,
     drawdown_pct,
+    hybrid_anchor_high,
     is_gate_eligible,
     is_stale_anchor,
     rolling_high,
@@ -32,16 +33,26 @@ def build_fib_frame(
     entry_tf: str,
     exit_tf: str,
     cfg: dict,
+    use_hybrid: bool = False,
 ) -> pd.DataFrame:
     daily = fetch_daily_bars(ticker)
     key = cfg["ut_bot"]["key_value"]
     atrp = cfg["ut_bot"]["atr_period"]
 
     frame = daily.copy()
-    frame["high_2yr"] = rolling_high(daily["Close"])
+    if use_hybrid:
+        # CHANGE 2: hybrid anchor fixes stale/young-name peaks in place, so
+        # nothing is excluded; anchor_extended tracks where it fired.
+        high, extended = hybrid_anchor_high(daily["Close"])
+        frame["high_2yr"] = high
+        frame["anchor_extended"] = extended
+        frame["stale"] = False           # no exclusion under the hybrid anchor
+    else:
+        frame["high_2yr"] = rolling_high(daily["Close"])
+        frame["anchor_extended"] = False
+        frame["stale"] = is_stale_anchor(daily["Close"])
     frame["dd_pct"] = drawdown_pct(daily["Close"], frame["high_2yr"])
-    frame["eligible"] = is_gate_eligible(daily["Close"], gate_threshold)
-    frame["stale"] = is_stale_anchor(daily["Close"])
+    frame["eligible"] = frame["dd_pct"] >= gate_threshold
     frame["dip_low"] = dip_low_since_gate_clear(daily["Low"], frame["eligible"])
 
     # gate-clear date of the current eligible episode — the documented

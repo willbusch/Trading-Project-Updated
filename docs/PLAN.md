@@ -53,6 +53,44 @@ owner-specified (Addendum 2).
 
 ---
 
+## FULL-UNIVERSE RUN — 2026-07-19 (200-name proxy, edge-verdict attempt)
+
+Scaled the Fib strategy from 12 curated names to a 200-name universe.
+Four changes bundled: (1) latch DROPPED — equity exit is now the simple
+version (proven equivalent in the 12-name ablation; latch code kept for
+reference); (2) HYBRID ANCHOR (504d default, extended ~4yr when the true
+peak aged out of the 2yr window) — replaces stale-exclusion, fires on
+146/200 names; (3) QUALITY GATE = static membership in a live scanner list
+($10B+ mkt cap, positive net margin, >1M avg vol); (4) SPY-WHEN-IDLE-CASH
+benchmark to price cash drag directly.
+
+- New: `backtest/fib_universe.py`, `scripts/ingest_universe.py`,
+  `scripts/render_universe_report.py`, `data/universe_snapshot.json`.
+  `drawdown_gate.hybrid_anchor_high` + `fib_features(use_hybrid=)` +
+  `simulate_fib(idle_cash_spy=, simple_exit=)`. 59 tests green incl. a new
+  hybrid-anchor lookahead test.
+- DATA REALITY (the binding constraint): Robinhood has NO index-membership
+  filter and only CURRENT fundamentals. So this is NOT a point-in-time
+  SPY/QQQ run — it's a current-membership, current-fundamentals proxy
+  (top-200 large-cap-profitable by today's snapshot). Severe survivorship +
+  fundamental-snapshot bias, all favoring the strategy. Flagged verbatim in
+  the report header. 100% coverage (200/200 names, daily 2018→2026).
+- RUNTIME: ~143s/cell forced the prompt-authorized REDUCED 4-cell set
+  (daily/weekly, 3day/weekly, weekly/weekly, daily/daily) instead of 7.
+- VERDICTS (reports/fib_universe.md): winning cell daily/weekly. It DID beat
+  SPY buy-hold in the vault (+37.7% vs +18.4%) AND the SPY-idle-cash variant
+  (+42.0% vs +18.4%). BUT: 100% win rate in every window = survivorship
+  signature; vault verdict rests on 2 trades; winners dominated by the
+  COVID-crash cluster. Honest call: NOT proof of edge — clears the bar
+  barely, on thin evidence. Leak-hunt passed (combined CAGR 11–15%; the
+  >50% CAGR cells are short half-windows with n=6–7).
+- OPEN: point-in-time membership + historical fundamentals are the only
+  path to a real edge verdict and are NOT available from Robinhood — would
+  need a different data source. Deployment only ~72% pre-vault despite
+  something eligible 77% of days (5-slot/2-per-week throttle).
+
+---
+
 ## LATCHED-FIB STRATEGY BUILT + RUN — 2026-07-19 (12-name matrix)
 
 A/B/C/D formally RETIRED (code kept for reference, no longer run). The
