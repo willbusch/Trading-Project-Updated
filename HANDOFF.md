@@ -1,4 +1,11 @@
 ---
+## 2026-07-20 — HANDOFF
+LAST_COMMIT: edec90d
+SNAPSHOT: Two-account book reconciled (equities were in an unreachable second account, not sold; ORCL updated to 36 sh/$144.81 basis) and reports/results_dashboard.html built (6 sections, real equity curves, sent to owner for visual sign-off). 73 tests green.
+NEXT: Owner to confirm the dashboard renders correctly (chart, mobile layout), then decide on Phase 0 (fix the book) using the reconciled STRATEGY.md Part 7 targets, and separately weigh in on today's ORCL average-down.
+---
+
+---
 ## 2026-07-20 — EXECUTED (from chat): Book reconciled + results dashboard
 DID (2 tasks):
 T1 — Reconciled the "zero equities" mystery: not a sold book, a connection
