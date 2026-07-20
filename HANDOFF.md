@@ -1,4 +1,11 @@
 ---
+## 2026-07-20 — HANDOFF
+LAST_COMMIT: 0a6adec
+SNAPSHOT: Fib strategy promoted to official (STRATEGY.md v3.0), final exit ablation run (plain 0.9-floor wins, latch design rejected), live scanner scaffolded and run against real Robinhood accounts. 73 tests green.
+NEXT: Owner must confirm which book is real — the July 20 live scan found ZERO equity positions in any linked account (only 2 LEAPs, 84% sleeve, 0% cash), contradicting the July 14 manual audit's 7-position book. Phase 0 (fix the book) is blocked on this until resolved.
+---
+
+---
 ## 2026-07-20 — EXECUTED (from chat, morning prompt): Promote Fib, final ablation, scanner scaffold
 DID (4 tasks, in dependency order):
 T1 — STRATEGY.md rewritten to v3.0: drawdown-gated Fib is now the OFFICIAL
