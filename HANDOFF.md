@@ -1,4 +1,11 @@
 ---
+## 2026-07-19 — HANDOFF
+LAST_COMMIT: c236af6
+SNAPSHOT: Full-universe (200-name current-membership proxy) Fib run complete. Winning cell daily/weekly beat SPY and the SPY-idle-cash variant in the 12mo vault, but on 2 trades with 100% win rate every window = survivorship; not proof of edge. 59 tests green.
+NEXT: Owner decision — a real edge verdict needs point-in-time membership + historical fundamentals (NOT available from Robinhood; different data source required). Otherwise iterate the strategy or accept the proxy result as the ceiling of what this data can show.
+---
+
+---
 ## 2026-07-19 — EXECUTED (from chat): Full-universe run (200-name proxy)
 DID: Scaled Fib strategy to a 200-name universe. 4 changes: (1) latch
 DROPPED (simple equity exit now active; latch kept for reference), (2)
