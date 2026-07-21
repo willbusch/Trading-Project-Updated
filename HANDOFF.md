@@ -1,4 +1,11 @@
 ---
+## 2026-07-21 — HANDOFF
+LAST_COMMIT: 38f6504
+SNAPSHOT: Flat 0.55-delta LEAP approximation retired, replaced with a real Black-Scholes engine — every historical LEAP trade was mispriced (2.5-3.8x understated on winners; one MU trade flips to expired-worthless -100%). Full-span max drawdown rose to 62.8% (traced to that same MU LEAP), confirmed as real leverage risk, not a bug. Tiered gate adopted official, ratio tiebreak verified working in-run (AMAT beat 4 smaller names), sizing changed to 4 equity + 1 LEAP at 33%, daily/weekly locked. 89 tests green. Research formally re-closed.
+NEXT: Owner reviews the dashboard's new LEAP-correction section (8) and reports/fib_final_run.md, decides whether the locked configuration (33% single-LEAP sizing + real convexity + 62.8% max DD) is an acceptable risk profile. Phase 0 (fix the real book) and the ORCL average-down judgment call remain separately open from two sessions ago.
+---
+
+---
 ## 2026-07-21 — EXECUTED (from chat): Real LEAP pricing + tiered gate adopted + tiebreak fix
 DID (priority order, all 3 done):
 T1 — REAL LEAP PRICING (backtest/leap_bs_pricing.py, new): retires the
