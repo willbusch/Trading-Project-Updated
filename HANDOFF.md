@@ -47,7 +47,7 @@ added to reports/results_dashboard.html (6-cell matrix + flat-vs-tiered
 comparison, both re-run fresh this session for an apples-to-apples
 comparison). Sent to owner for visual check alongside the update.
 
-LAST_COMMIT: 38d5b6e85afa3e4fad9a4a76e8e9e9d2e0869022
+LAST_COMMIT: f066c008e5d7ced504ab00ecefb4e4e1940609d6
 ---
 
 ---
