@@ -82,7 +82,7 @@ lookahead, 5 LEAP-reserve constraint tests, 1 ratio-tiebreak integration
 test — see tests/test_leap_bs_pricing.py, tests/test_leap_reserve.py,
 tests/test_ratio_tiebreak.py).
 
-LAST_COMMIT: 776fe272e1acec4eb4220f6d20f7bbf596eb27aa
+LAST_COMMIT: 4da180bdb0a8733d7b2f6f7837aa706fc86ca7c6
 ---
 
 ---
