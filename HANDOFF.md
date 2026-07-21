@@ -1,4 +1,56 @@
 ---
+## 2026-07-20 — EXECUTED (from chat): Tiered drawdown gate — research reopened
+DID: Implemented and ran the owner-specified tiered drawdown gate (25%
+$500B+ / 30% $150-500B / 40% under $150B, by CURRENT market cap — no
+point-in-time data available, flagged as a proxy same as universe
+membership). New: `backtest.fib_universe.gate_of_tiered` +
+`build_universe_frames(market_caps=)` param (backward compatible, flat
+gate stays default). 2 new tests. 75 tests green total.
+
+Mechanical note: only the $150B-500B band actually changes (40%->30%) —
+$500B+ names were already 25%, sub-$150B already 40%. 73/200 universe
+names affected. Verified per-ticker (ORCL: 130->176 eligible days,
+8->10 entry candidates) before trusting aggregate output.
+
+Ran the full 6-cell timeframe matrix under the tiered gate (daily/3day/
+weekly entry x 3day/weekly exit), ~130-165s/cell, ~15min total — did NOT
+need to reduce to 3 cells, ran all 6. Leak-hunt passed (11-23% CAGR,
+no cell near 50%).
+
+HONEST RESULT (reports/fib_tiered_gate.md): trades now genuinely spread
+across 2021-2026 (previously ~all 2020) - the crash-concentration
+diagnosis was correct and the fix works directionally. BUT counterintuitively
+LOWERED trade count + total return on the former champion cell
+(daily/weekly: 12->9 trades, +416%->+117%) via a verified emergent effect
+- more eligible names now compete for the same 5-slot/2-per-week throttle,
+crowding out some of the flat gate's biggest winners. Not a bug - checked
+directly. Vault trade counts stayed thin (1-2 per cell) and were shown to
+be sensitive to minor universe-snapshot timing (re-running the flat
+baseline fresh this session gave 2 vault trades, not the dashboard's
+earlier-observed 1 - itself evidence the vault sample is too thin to
+treat as decisive). Sorting by total return (owner's explicit choice)
+surfaces weekly/3day as the "winner" (+259%) but it has the WEAKEST vault
+performance of all 6 cells - flagged prominently as the exact
+one-COVID-trade-dressed-as-champion risk the owner asked to guard against.
+
+No single cell delivers an unambiguous win over the flat-gate baseline.
+This IMPROVED the strategy's honesty about its own limits; it did NOT
+prove edge - stated verbatim per the owner's framing requirement.
+
+STRATEGY.md: drawdown-gate section rewritten to document the tiered gate
+as the active experiment (not a proven replacement); status banner updated
+to "research reopened." PLAN.md: reopened note added above the prior
+closed note (kept, not deleted, for history).
+
+Dashboard regenerated: new section 7 "Tiered Drawdown Gate - EXPERIMENTAL"
+added to reports/results_dashboard.html (6-cell matrix + flat-vs-tiered
+comparison, both re-run fresh this session for an apples-to-apples
+comparison). Sent to owner for visual check alongside the update.
+
+LAST_COMMIT: 38d5b6e85afa3e4fad9a4a76e8e9e9d2e0869022
+---
+
+---
 ## 2026-07-20 — HANDOFF
 LAST_COMMIT: edec90d
 SNAPSHOT: Two-account book reconciled (equities were in an unreachable second account, not sold; ORCL updated to 36 sh/$144.81 basis) and reports/results_dashboard.html built (6 sections, real equity curves, sent to owner for visual sign-off). 73 tests green.

@@ -55,7 +55,30 @@ for reference only, see STRATEGY.md Part 0). No further action needed.
 
 ---
 
-## RESEARCH PHASE CLOSED — 2026-07-20
+## RESEARCH PHASE REOPENED — 2026-07-20 (tiered drawdown gate)
+
+The "closed" note directly below was accurate for less than a day. The
+dashboard surfaced a finding that demanded a re-open: every backtest
+winner traced to a Feb–Mar 2020 COVID entry, because a flat 40% drawdown
+gate structurally locks mega-caps out of qualifying outside a crash. Owner
+specified a tiered gate (25%/30%/40% by market-cap band) to test whether
+that's fixable without a new data source. Result: genuine improvement on
+trade-year-spread (2021–2026 now represented, not just 2020), but NOT a
+clean win — it lowered trade count and return on the prior champion cell.
+No single re-tested cell beats the flat-gate baseline unambiguously.
+Full write-up: `reports/fib_tiered_gate.md`. STRATEGY.md's drawdown-gate
+section now documents the tiered gate as the active experiment.
+
+**Research phase re-closes** on the same terms as below: the ceiling is
+still data (no point-in-time membership/fundamentals), now also extended
+to market-cap tiering itself (current-snapshot proxy, flagged in
+STRATEGY.md). Further iteration past this specific tiered-gate test
+requires the same missing data source as everything else in this
+section.
+
+---
+
+## RESEARCH PHASE CLOSED — 2026-07-20 (superseded by the reopen note above)
 
 After the final structural ablation (see `reports/` for the run), no
 further strategy iteration is planned on the current data source. The

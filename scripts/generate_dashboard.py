@@ -71,6 +71,58 @@ def build_html(data: dict) -> str:
         for k in ["simple_05", "simple_09", "latch_v2"]
     )
 
+    tg = data.get("tiered_gate")
+    tiered_html = ""
+    if tg:
+        min_vault_n = min(r["vault_n"] for r in tg["matrix"])
+        min_vault_exp_at_min_n = min(
+            (r["vault_exp"] or 9e9) for r in tg["matrix"] if r["vault_n"] == min_vault_n
+        )
+
+        def _tiered_row(r):
+            weak = (r["vault_n"] == min_vault_n and (r["vault_exp"] or 9e9) == min_vault_exp_at_min_n)
+            flag = " ⚠️" if weak else ""
+            ys = ", ".join(f"{y}:{n}" for y, n in sorted(r["year_spread"].items()))
+            return (
+                f"<tr><td>{r['cell']}</td>"
+                f"<td>{fmt_pct(r['total_return'])}</td>"
+                f"<td>{fmt_pct(r['prevault_exp'])}</td><td>{r['prevault_n']}</td>"
+                f"<td>{fmt_pct(r['vault_exp'])}{flag}</td><td>{r['vault_n']}</td>"
+                f"<td style='font-size:0.75rem;color:var(--muted)'>{ys}</td></tr>"
+            )
+
+        tiered_rows = "".join(_tiered_row(r) for r in tg["matrix"])
+        fb, tb = tg["flat_baseline"], tg["tiered_baseline_cell"]
+
+        tiered_html = f"""
+  <div class="panel" style="border-color:var(--warn);">
+    <h2>7. Tiered Drawdown Gate — ⚠️ EXPERIMENTAL, reopened research (2026-07-20)</h2>
+    <div class="sub">Replaces the flat 40%/25% gate with 25% ($500B+) / 30% ($150-500B) / 40% (under $150B), by CURRENT market cap (no point-in-time data available — flagged proxy). Full detail: <code>reports/fib_tiered_gate.md</code>. This section is exploratory — the flat-gate results above remain the adopted baseline.</div>
+    <h3 style="margin-top:14px;font-size:0.95rem;">6-cell matrix, sorted by total return (vault columns never hidden)</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Cell</th><th>Total Ret</th><th>Pre-vault Exp</th><th>Pre-vault N</th>
+        <th>Vault Exp</th><th>Vault N</th><th>Year spread</th></tr></thead>
+      <tbody>{tiered_rows}</tbody>
+    </table>
+    </div>
+    <div class="sub">⚠️ = weakest vault performance among the 6 — check before trusting the total-return sort alone.</div>
+    <h3 style="margin-top:14px;font-size:0.95rem;">Tiered vs flat, same cell ({cell}), both re-run fresh this session</h3>
+    <table>
+      <thead><tr><th></th><th>Pre-vault N</th><th>Pre-vault Exp</th><th>Pre-vault Ret</th>
+        <th>Vault N</th><th>Vault Exp</th><th>Vault Ret</th></tr></thead>
+      <tbody>
+        <tr><td>Flat 40%/25%</td><td>{fb['prevault_n']}</td><td>{fmt_pct(fb['prevault_exp'])}</td>
+          <td>{fmt_pct(fb['prevault_ret'])}</td><td>{fb['vault_n']}</td>
+          <td>{fmt_pct(fb['vault_exp'])}</td><td>{fmt_pct(fb['vault_ret'])}</td></tr>
+        <tr><td>Tiered 25/30/40</td><td>{tb['prevault_n']}</td><td>{fmt_pct(tb['prevault_exp'])}</td>
+          <td>{fmt_pct(tb['prevault_ret'])}</td><td>{tb['vault_n']}</td>
+          <td>{fmt_pct(tb['vault_exp'])}</td><td>{fmt_pct(tb['vault_ret'])}</td></tr>
+      </tbody>
+    </table>
+    <div class="sub">Net result on this cell: tiering LOWERED trade count and total return; vault performance was essentially unchanged. Not a clean win — see the full report for the honest read across all 6 cells.</div>
+  </div>"""
+
     data_json = json.dumps(data)
 
     return f"""<title>Backtest Results Dashboard</title>
@@ -211,6 +263,7 @@ def build_html(data: dict) -> str:
     </div>
     <div class="sub">Click a column header to sort. "Kind" (equity/LEAP) shown in place of a live-account label — these are simulated backtest trades, not tied to a real brokerage account.</div>
   </div>
+  {tiered_html}
 </div>
 
 <script>

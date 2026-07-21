@@ -50,12 +50,43 @@ def gate_of(ticker, leap_tickers):
     return 0.25 if ticker in leap_tickers else 0.40
 
 
-def build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg):
+# TIERED DRAWDOWN GATE (2026-07-20, owner-specified, not swept). Replaces
+# the flat 40%/25% gate. Only the $150B-$500B band actually changes
+# behavior vs the old gate_of() above — $500B+ names were already 25%
+# (auto-LEAP-tier) and sub-$150B names were already 40%.
+#
+# DATA LIMITATION (flagged per guardrail): market cap is CURRENT-snapshot
+# only — no point-in-time history exists from this data source, so a
+# name's tier is fixed at today's cap and applied across its ENTIRE
+# backtest history, same current-proxy limitation as universe membership
+# itself. This is a proxy, not a lookahead: the anchor/eligibility
+# computation downstream is still strictly forward-only (tested), only
+# the THRESHOLD VALUE itself is a static, non-time-varying input.
+TIER_BREAKPOINTS = ((500e9, 0.25), (150e9, 0.30), (0, 0.40))
+
+
+def gate_of_tiered(ticker: str, market_caps: dict) -> float:
+    mc = market_caps.get(ticker, 0)
+    for floor, threshold in TIER_BREAKPOINTS:
+        if mc >= floor:
+            return threshold
+    return 0.40
+
+
+def build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg,
+                          market_caps: dict | None = None):
+    """market_caps=None -> flat 40%/25% gate (gate_of), the original
+    behavior. market_caps={ticker: cap} -> tiered gate (gate_of_tiered).
+    Toggling this is the ONLY difference between the flat and tiered runs
+    — everything else (quality gate, LEAP kind assignment, hybrid anchor,
+    UT trigger) is identical."""
     frames = {}
     for t in tickers:
         try:
+            threshold = (gate_of_tiered(t, market_caps) if market_caps is not None
+                        else gate_of(t, leap_tickers))
             frames[t] = build_fib_frame(
-                t, gate_of(t, leap_tickers), entry_tf, exit_tf, cfg, use_hybrid=True,
+                t, threshold, entry_tf, exit_tf, cfg, use_hybrid=True,
             )
         except Exception as e:                       # noqa: BLE001 - report coverage
             print(f"  SKIP {t}: {type(e).__name__} {e}")

@@ -117,6 +117,56 @@ def main():
             "gap_giveback": d["gap"]["total_giveback_dollars"],
         }
 
+    # 2026-07-20 tiered-drawdown-gate run (EXPERIMENTAL — reopened
+    # research, not yet adopted as the official gate). Optional: only
+    # included if that run's pickle exists.
+    tiered_section = None
+    try:
+        tiered = pickle.load(open(
+            "/tmp/claude-0/-home-user-Trading-Project-Updated/"
+            "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/tiered_results_full.pkl",
+            "rb"))
+        flat_fresh = pickle.load(open(
+            "/tmp/claude-0/-home-user-Trading-Project-Updated/"
+            "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/flat_baseline_fresh.pkl",
+            "rb"))
+        TR = tiered["results"]
+        tcells = [f"{e}/{x}" for e, x in tiered["cells"]]
+        pv_w, va_w = "combined (pre-vault)", "VAULT (last 12mo, tested once)"
+        matrix = []
+        for cl in tcells:
+            d = TR[(cl, pv_w)]; t = d["trade"]; dd = d["dd"]
+            vd = TR[(cl, va_w)]["trade"]
+            matrix.append({
+                "cell": cl, "total_return": dd["total_return"],
+                "prevault_exp": t["expectancy_pct"], "prevault_n": t["n_closed"],
+                "vault_exp": vd["expectancy_pct"], "vault_n": vd["n_closed"],
+                "year_spread": TR[(cl, "FULL SPAN")]["year_spread"],
+            })
+        matrix.sort(key=lambda r: -(r["total_return"] or -9))
+        tiered_section = {
+            "matrix": matrix,
+            "flat_baseline": {
+                "prevault_n": flat_fresh[pv_w]["trade"]["n_closed"],
+                "prevault_exp": flat_fresh[pv_w]["trade"]["expectancy_pct"],
+                "prevault_ret": flat_fresh[pv_w]["dd"]["total_return"],
+                "vault_n": flat_fresh[va_w]["trade"]["n_closed"],
+                "vault_exp": flat_fresh[va_w]["trade"]["expectancy_pct"],
+                "vault_ret": flat_fresh[va_w]["dd"]["total_return"],
+            },
+            "tiered_baseline_cell": {
+                "prevault_n": TR[(tcells[0], pv_w)]["trade"]["n_closed"],
+                "prevault_exp": TR[(tcells[0], pv_w)]["trade"]["expectancy_pct"],
+                "prevault_ret": TR[(tcells[0], pv_w)]["dd"]["total_return"],
+                "vault_n": TR[(tcells[0], va_w)]["trade"]["n_closed"],
+                "vault_exp": TR[(tcells[0], va_w)]["trade"]["expectancy_pct"],
+                "vault_ret": TR[(tcells[0], va_w)]["dd"]["total_return"],
+            },
+        }
+        print("tiered section embedded:", len(matrix), "cells")
+    except FileNotFoundError:
+        print("no tiered results found, skipping that dashboard section")
+
     data = {
         "generated_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
         "cell": f"{entry_tf}/{exit_tf}", "exit_variant": WINNING_VARIANT,
@@ -131,6 +181,7 @@ def main():
         "spy_benchmark": spy_bm,
         "trade_log": trade_log,
         "exit_comparison": exit_comparison,
+        "tiered_gate": tiered_section,
         "seed_cash": cfg["backtest"]["seed_cash"],
     }
 

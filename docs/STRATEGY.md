@@ -14,20 +14,30 @@
 
 ---
 
-## ⚠️ STATUS: PLAUSIBLE, NOT PROVEN
+## ⚠️ STATUS: PLAUSIBLE, NOT PROVEN — RESEARCH REOPENED 2026-07-20
 
-Backtested across three research generations (2026-07-19/20). The universe
+Backtested across four research generations (2026-07-19/20). The universe
 run cleared SPY buy-and-hold and the SPY-idle-cash benchmark in a 12-month
 vault — but on **2 trades**, with a **100% win rate in every window of
 every cell tested**, which is the signature of survivorship bias (the
 universe is defined by names that are large-cap and profitable *today*),
-not of demonstrated skill. Every large winner traces to the Feb–Mar 2020
+not of demonstrated skill. Every large winner traced to the Feb–Mar 2020
 COVID crash and recovery — one regime, one name set, selected after the
 fact. **No real capital is deployed on this system until a data source
 supporting point-in-time index membership and historical fundamentals
-becomes available and the backtest is re-run against it.** See
-`reports/fib_matrix.md` and `reports/fib_universe.md` for full results and
-caveats.
+becomes available and the backtest is re-run against it.**
+
+**2026-07-20 — the tiered drawdown gate (below) reopened this formally-closed
+research phase.** Diagnosis: a flat 40% gate structurally locks a mega-cap
+out of ever qualifying outside a crash, which is WHY every winner was a
+2020 entry. The tiered gate loosens that for mid-caps. Result: trades now
+genuinely spread across 2021–2026, not just 2020 — real, verified
+improvement on that specific axis. But it is **not a clean win**: on the
+prior champion cell it LOWERED both trade count and total return, and
+vault sample sizes stayed just as thin (1–2 trades per cell). **This run
+IMPROVED the strategy's honesty about its own limits; it did NOT prove
+edge.** Full results: `reports/fib_tiered_gate.md`,
+`reports/fib_matrix.md`, `reports/fib_universe.md`.
 
 ---
 
@@ -85,10 +95,48 @@ source — flagged as the top open item in `PLAN.md`.
 
 ## PART 2 — THE ENTRY (When We Buy)
 
-### The Drawdown Gate
+### The Drawdown Gate — TIERED (2026-07-20, EXPERIMENTAL, reopened research)
 
-Price is **≥40% below its own hybrid 2-year-high anchor** (equities) or
-**≥25% below** (LEAP underlyings, additive to the $500B+ filter).
+Price is below its own hybrid 2-year-high anchor by at least:
+
+| Market cap | Required drawdown |
+|---|---|
+| **$500B+** | **25%** |
+| **$150B – $500B** | **30%** |
+| **Under $150B** | **40%** |
+
+LEAP underlyings keep the existing $500B+ requirement (additive to the
+quality gate); their drawdown threshold is the 25% row, unchanged from
+before. **No hard cap floor** — smaller names simply need a deeper
+drawdown to qualify, they are never outright excluded by cap alone (the
+$10B+ quality-gate floor still applies separately, upstream, in Part 1).
+
+**The mechanical delta vs the prior flat 40%/25% gate:** only the
+**$150B–$500B band actually changes** (40%→30%) — $500B+ names were
+already 25% and sub-$150B names were already 40% under the old gate.
+73 of the 200 universe names fall in the affected band.
+
+**🔴 Data limitation (flagged, not hidden):** market cap is a CURRENT
+snapshot only — no point-in-time history exists from this data source, so
+a name's tier is fixed at TODAY's cap and applied across its entire
+backtest history. This is the same current-proxy limitation universe
+membership already carries, extended to the tier assignment itself. The
+anchor/eligibility computation downstream is still strictly forward-only
+and lookahead-tested — only the threshold VALUE is a static input, not a
+time-varying lookahead.
+
+**Honest result (2026-07-20 ablation, `reports/fib_tiered_gate.md`):**
+trades now genuinely spread across 2021–2026 instead of clustering almost
+entirely in 2020 — real, verified improvement on the crash-concentration
+problem. But it is not a clean win: on the prior champion cell
+(daily/weekly) it LOWERED both trade count (12→9) and total return
+(+416%→+117%) via an emergent slot-competition effect (more eligible
+names now compete for the same 5-slot/2-per-week throttle, crowding out
+some of the flat gate's biggest winners) — verified as a real dynamic, not
+a bug, by direct per-ticker eligibility checks. **No single cell in the
+6-cell re-test delivers an unambiguous win over the flat-gate baseline.**
+This section documents the tiered gate as the CURRENTLY ACTIVE experiment,
+not a proven replacement.
 
 **The hybrid anchor:** a rolling 504-trading-day (2yr) high by default;
 when a name's true multi-year peak sits *outside* the 504-day window but
