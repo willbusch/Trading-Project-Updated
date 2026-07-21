@@ -1,4 +1,11 @@
 ---
+## 2026-07-20 — HANDOFF
+LAST_COMMIT: 5912806
+SNAPSHOT: Tiered drawdown gate (25/30/40 by market-cap tier) implemented and re-tested across all 6 timeframe cells. Real improvement on trade year-spread (2021-2026, not just 2020) but NOT a clean win — lowered trade count/return on the former champion cell via a verified slot-competition effect. No cell beats the flat-gate baseline unambiguously. Dashboard regenerated with new section 7. 75 tests green.
+NEXT: Owner reviews the dashboard's new tiered-gate section and reports/fib_tiered_gate.md, then decides whether to adopt tiering (and which cell, if any), keep the flat gate, or park this too. Phase 0 (fix the book) and the ORCL average-down judgment call remain separately open from last session.
+---
+
+---
 ## 2026-07-20 — EXECUTED (from chat): Tiered drawdown gate — research reopened
 DID: Implemented and ran the owner-specified tiered drawdown gate (25%
 $500B+ / 30% $150-500B / 40% under $150B, by CURRENT market cap — no
