@@ -12,6 +12,7 @@ check_all_entry_constraints. Slot-selection tiebreak when more names
 qualify than free slots (documented owner-flagged rule): deepest drawdown
 first, then earliest gate-clear date, then ticker alphabetical.
 """
+import math
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -23,7 +24,13 @@ from backtest.fib_exit import (
     LeapSimpleExit,
     SimpleFloorExit,
 )
-from backtest.leap_pricing import PRICING_LABEL, leap_delta
+from backtest.leap_bs_pricing import (
+    CONTRACT_MULTIPLIER,
+    PRICING_LABEL,
+    bs_call_price,
+    solve_strike_for_delta,
+    target_delta,
+)
 from backtest.portfolio_state import PortfolioState
 
 # EQUITY exit variant registry (2026-07-20 three-way ablation). LEAP exit is
@@ -128,7 +135,6 @@ def simulate_fib(
     # so nothing read at the fill bar (D+1) can leak into the anchors.
     pending_entries: dict[str, dict] = {}
     equity_hist, cash_hist = [], []
-    delta = leap_delta(cfg)
 
     for date in all_dates:
         todays = {t: f.loc[date] for t, f in sliced.items() if date in f.index}
@@ -137,13 +143,20 @@ def simulate_fib(
         for tkr in sorted(pending_exits):
             if tkr in todays and tkr in state.positions:
                 pos = state.positions[tkr]
-                fill = todays[tkr]["Open"] * (1 - slippage)
-                if pos.kind == "leap" and pos.delta is not None:
-                    cost_b = pos.cost_basis
-                    proceeds = cost_b + pos.delta * (pos.shares * fill - cost_b)
+                underlying_open = todays[tkr]["Open"]
+                if pos.kind == "leap" and pos.strike is not None:
+                    # Real Black-Scholes exit valuation (2026-07-21): the
+                    # premium at the fill bar, K and sigma still frozen at
+                    # entry, T decayed to today — genuine theta, not a
+                    # linear delta multiplier.
+                    t_remaining = max((pos.expiry_date - date).days / 365.25, 0.0)
+                    raw_premium = bs_call_price(underlying_open, pos.strike, t_remaining, pos.sigma)
+                    fill = raw_premium * (1 - slippage) * CONTRACT_MULTIPLIER
+                    proceeds = max(pos.shares * fill, 0.0)
                     state.positions.pop(tkr)
                     state.cash.deposit(date, proceeds, "sale", tkr)
                 else:
+                    fill = underlying_open * (1 - slippage)
                     proceeds = state.close_position(date, tkr, fill)
                 tr = open_trades.pop(tkr)
                 exit_machines.pop(tkr, None)
@@ -156,6 +169,7 @@ def simulate_fib(
                 del pending_exits[tkr]
 
         # 2. pending ENTRIES at open (constraint-gated)
+        from backtest.drawdown_gate import price_fraction
         for tkr in sorted(pending_entries):
             if tkr not in todays:
                 continue
@@ -166,25 +180,61 @@ def simulate_fib(
             cap = (cfg["leap"]["single_entry_pct_of_book"] if kind == "leap"
                    else cfg["sizing"]["max_position_pct_of_book"])
             dollars = cap * state.total_equity
-            order = EntryOrder(date, tkr, kind, dollars,
-                               delta=delta if kind == "leap" else None)
+            two_yr_high, dip_low = _snap["high_2yr"], _snap["dip_low"]
+
+            if kind == "leap":
+                sigma = _snap["realized_vol"]
+                if sigma != sigma:   # NaN: insufficient trailing history to price
+                    result.rejected_entries.append(
+                        FibRejected(date, tkr, ["insufficient realized-vol history"]))
+                    continue
+                T0 = cfg["leap"]["fib_modeled_expiry_years"]
+                dtarget = target_delta(cfg)
+                strike = solve_strike_for_delta(_snap["signal_close"], dtarget, T0, sigma)
+                underlying_open = todays[tkr]["Open"]
+                raw_premium = bs_call_price(underlying_open, strike, T0, sigma)
+                contract_cost = raw_premium * (1 + slippage) * CONTRACT_MULTIPLIER
+                if not (contract_cost == contract_cost) or contract_cost <= 0:
+                    result.rejected_entries.append(
+                        FibRejected(date, tkr, ["degenerate option price"]))
+                    continue
+                num_contracts = math.floor(dollars / contract_cost)
+                if num_contracts < 1:
+                    result.rejected_entries.append(
+                        FibRejected(date, tkr, ["book too small for 1 contract"]))
+                    continue
+                order = EntryOrder(date, tkr, kind, num_contracts * contract_cost, delta=dtarget)
+                ok, reasons = check_all_entry_constraints(state, order, cfg)
+                if not ok:
+                    result.rejected_entries.append(FibRejected(date, tkr, reasons))
+                    continue
+                expiry_date = date + pd.Timedelta(days=int(T0 * 365.25))
+                state.open_or_add(date, tkr, kind, contract_cost, num_contracts,
+                                  delta=dtarget, strike=strike, expiry_date=expiry_date,
+                                  sigma=sigma, underlying_price=underlying_open)
+                machine = LeapSimpleExit(dip_low, two_yr_high)
+                exit_machines[tkr] = machine
+                open_trades[tkr] = FibTrade(
+                    tkr, kind, date, contract_cost, num_contracts, two_yr_high, dip_low,
+                    price_fraction(underlying_open, dip_low, two_yr_high), peak_price=underlying_open,
+                    priced_as=PRICING_LABEL, stale_at_entry=bool(_snap["stale"]),
+                )
+                continue
+
+            order = EntryOrder(date, tkr, kind, dollars, delta=None)
             ok, reasons = check_all_entry_constraints(state, order, cfg)
             if not ok:
                 result.rejected_entries.append(FibRejected(date, tkr, reasons))
                 continue
             fill = todays[tkr]["Open"] * (1 + slippage)
             shares = dollars / fill
-            state.open_or_add(date, tkr, kind, fill, shares, order.delta)
-            two_yr_high, dip_low = _snap["high_2yr"], _snap["dip_low"]
-            from backtest.drawdown_gate import price_fraction
-            machine = (LeapSimpleExit(dip_low, two_yr_high) if kind == "leap"
-                       else EQUITY_EXIT_VARIANTS[exit_variant](dip_low, two_yr_high))
+            state.open_or_add(date, tkr, kind, fill, shares)
+            machine = EQUITY_EXIT_VARIANTS[exit_variant](dip_low, two_yr_high)
             exit_machines[tkr] = machine
             open_trades[tkr] = FibTrade(
                 tkr, kind, date, fill, shares, two_yr_high, dip_low,
                 price_fraction(fill, dip_low, two_yr_high), peak_price=fill,
-                priced_as=PRICING_LABEL if kind == "leap" else "shares",
-                stale_at_entry=bool(_snap["stale"]),
+                priced_as="shares", stale_at_entry=bool(_snap["stale"]),
             )
 
         # 3. read CLOSE signals -> schedule next-bar exits / collect entries
@@ -215,10 +265,20 @@ def simulate_fib(
                         continue
                     entry_candidates.append((tkr, row))
 
-        # slot-selection tiebreak: deepest drawdown, then earliest gate-clear,
-        # then alphabetical — deterministic, documented.
+        # RATIO-BASED slot-selection tiebreak (2026-07-21, owner override —
+        # replaces the old raw-deepest-drawdown-first rule): rank by
+        # drawdown / that name's OWN tier threshold — how far PAST its own
+        # gate it is, not the raw depth. A $600B name 32% down (1.28x its
+        # 25% gate) now beats an $80B name 44% down (1.10x its 40% gate),
+        # letting mega-caps win contested slots instead of always losing
+        # to small-caps that can post deeper raw drawdowns. Falls back to
+        # earliest gate-clear, then alphabetical — unchanged.
         entry_candidates.sort(
-            key=lambda tr: (-tr[1]["dd_pct"], tr[1]["gate_clear_date"], tr[0])
+            key=lambda tr: (
+                -(tr[1]["dd_pct"] / tr[1]["gate_threshold"]),
+                tr[1]["gate_clear_date"],
+                tr[0],
+            )
         )
         for tkr, row in entry_candidates:
             # freeze anchors at THIS bar's close (all known now) so the
@@ -227,6 +287,8 @@ def simulate_fib(
                 "high_2yr": row["high_2yr"],
                 "dip_low": row["dip_low"],
                 "stale": bool(row["stale"]),
+                "realized_vol": row["realized_vol"],   # sigma proxy, signal-bar-frozen
+                "signal_close": row["Close"],            # K solved from THIS bar, not the fill
             }
 
         # CHANGE 4: credit idle cash the day's SPY return before marking

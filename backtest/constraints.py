@@ -80,6 +80,35 @@ def check_cash_floor(state: PortfolioState, order: EntryOrder, cfg: dict):
     return True, ""
 
 
+def check_leap_reserve(state: PortfolioState, order: EntryOrder, cfg: dict):
+    """DEDICATED LEAP RESERVE (2026-07-21, owner's model): while no LEAP
+    position is currently held, `leap.reserve_pct` (33%) of the book is
+    RESERVED capital, held back for the next qualifying mega-cap LEAP
+    setup — it may NOT be spent on a 5th equity. Applies to EQUITY orders
+    only; a LEAP order is what the reserve exists to fund. Once a LEAP IS
+    held, its 33% is already deployed as a real position (not idle cash),
+    so this check steps aside and the normal cash floor covers the rest."""
+    if order.kind != "equity":
+        return True, ""
+    reserve_pct = cfg.get("leap", {}).get("reserve_pct")
+    if reserve_pct is None:   # not configured (e.g. the retired A/B/C/D
+        return True, ""       # strategies never had this rule) -> no-op
+    has_leap = any(p.kind == "leap" for p in state.positions.values())
+    if has_leap:
+        return True, ""
+    reserve = reserve_pct * state.total_equity
+    floor = cfg["sizing"]["min_cash_floor_pct"] * state.total_equity
+    remaining = state.cash.balance - order.dollars
+    required = reserve + floor
+    if remaining < required - 1e-9:
+        return False, (
+            f"leap_reserve: entry leaves {remaining:.2f} cash, but "
+            f"{required:.2f} is required (33% LEAP reserve + cash floor, "
+            f"no LEAP currently held)"
+        )
+    return True, ""
+
+
 def check_weekly_cap(state: PortfolioState, order: EntryOrder, cfg: dict):
     if order.is_tranche_add:
         return True, ""
@@ -124,6 +153,7 @@ ALL_CHECKS = [
     check_weekly_cap,
     check_position_cap,
     check_leap_sleeve,
+    check_leap_reserve,
     check_cash_floor,
     check_cash_rule,
 ]

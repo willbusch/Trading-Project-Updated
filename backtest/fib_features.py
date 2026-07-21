@@ -12,6 +12,12 @@ Columns (daily index):
   dip_low                           lowest low since gate last cleared, thru bar
   entry_ut_buy                      UT buy EVENT on the cell's ENTRY timeframe
   exit_ut_sell                      UT sell EVENT on the cell's EXIT timeframe
+  gate_threshold                    this ticker's drawdown-gate threshold (constant
+                                    per ticker; ratio tiebreak = dd_pct/gate_threshold)
+  realized_vol                      trailing 252d annualized realized vol (log
+                                    returns), forward-only — sigma proxy for
+                                    backtest.leap_bs_pricing (no historical IV
+                                    surface is available from this data source)
 """
 import pandas as pd
 
@@ -23,6 +29,7 @@ from backtest.drawdown_gate import (
     is_stale_anchor,
     rolling_high,
 )
+from backtest.leap_bs_pricing import realized_vol as _realized_vol
 from backtest.multi_tf import ut_events_on_daily
 from screener.data import fetch_daily_bars
 
@@ -53,7 +60,9 @@ def build_fib_frame(
         frame["stale"] = is_stale_anchor(daily["Close"])
     frame["dd_pct"] = drawdown_pct(daily["Close"], frame["high_2yr"])
     frame["eligible"] = frame["dd_pct"] >= gate_threshold
+    frame["gate_threshold"] = gate_threshold
     frame["dip_low"] = dip_low_since_gate_clear(daily["Low"], frame["eligible"])
+    frame["realized_vol"] = _realized_vol(daily["Close"])
 
     # gate-clear date of the current eligible episode — the documented
     # SECONDARY slot-selection tiebreak (deepest drawdown is primary)

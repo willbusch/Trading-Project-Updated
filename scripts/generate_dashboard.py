@@ -12,9 +12,12 @@ DATA_PATH = "reports/dashboard_data.json"
 OUT_PATH = "reports/results_dashboard.html"
 
 CAVEAT_BANNER = (
-    "Survivorship-biased proxy universe. Edge plausible, NOT proven. "
-    "Thin vault sample. No real capital should move on this until "
-    "validated against point-in-time data."
+    "Still a survivorship-biased proxy universe with current-snapshot "
+    "market caps. Real LEAP pricing makes the P&L HONEST but does not "
+    "remove survivorship bias. Improves accuracy, does not prove edge. "
+    "Research re-closes after this run; genuine validation needs "
+    "point-in-time membership + fundamentals + market caps Robinhood "
+    "can't provide."
 )
 
 
@@ -96,8 +99,8 @@ def build_html(data: dict) -> str:
 
         tiered_html = f"""
   <div class="panel" style="border-color:var(--warn);">
-    <h2>7. Tiered Drawdown Gate — ⚠️ EXPERIMENTAL, reopened research (2026-07-20)</h2>
-    <div class="sub">Replaces the flat 40%/25% gate with 25% ($500B+) / 30% ($150-500B) / 40% (under $150B), by CURRENT market cap (no point-in-time data available — flagged proxy). Full detail: <code>reports/fib_tiered_gate.md</code>. This section is exploratory — the flat-gate results above remain the adopted baseline.</div>
+    <h2>7. Tiered Drawdown Gate — ✅ ADOPTED 2026-07-21 (history: reopened research 2026-07-20)</h2>
+    <div class="sub">25% ($500B+) / 30% ($150-500B) / 40% (under $150B), by CURRENT market cap (no point-in-time data available — flagged proxy). Now the OFFICIAL gate driving the primary equity curve above. This section's matrix is the 2026-07-20 exploration that led to adoption; full detail: <code>reports/fib_tiered_gate.md</code>, <code>reports/fib_final_run.md</code>.</div>
     <h3 style="margin-top:14px;font-size:0.95rem;">6-cell matrix, sorted by total return (vault columns never hidden)</h3>
     <div class="table-scroll">
     <table>
@@ -121,6 +124,36 @@ def build_html(data: dict) -> str:
       </tbody>
     </table>
     <div class="sub">Net result on this cell: tiering LOWERED trade count and total return; vault performance was essentially unchanged. Not a clean win — see the full report for the honest read across all 6 cells.</div>
+  </div>"""
+
+    leap_correction_html = ""
+    lc = data.get("leap_correction")
+    if lc:
+        def _lc_row(r):
+            mult = r.get("multiplier_vs_underlying")
+            mult_str = f"{mult:.2f}x" if mult is not None else "—"
+            exit_label = r["exit_date"] or "OPEN"
+            new_pnl = r.get("new_real_pnl_pct")
+            return (
+                f"<tr><td>{r['ticker']}</td><td>{r['entry_date']}</td><td>{exit_label}</td>"
+                f"<td>{fmt_pct(r['underlying_move_pct'])}</td>"
+                f"<td>{fmt_pct(r['old_approx_pnl_pct'])}</td>"
+                f"<td class='{'pos' if (new_pnl or 0)>=0 else 'neg'}'>{fmt_pct(new_pnl) if new_pnl is not None else '—'}</td>"
+                f"<td>{mult_str}</td></tr>"
+            )
+        lc_rows = "".join(_lc_row(r) for r in lc)
+        leap_correction_html = f"""
+  <div class="panel" style="border-color:var(--accent);">
+    <h2>8. LEAP Pricing Correction — ⭐ the headline fix (2026-07-21)</h2>
+    <div class="sub">The old flat 0.55-delta approximation retired. Real Black-Scholes pricing (K and sigma frozen at entry from the underlying's own trailing realized vol; only S and T evolve) now drives every LEAP trade's P&L. Every trade below was mispriced by the old model.</div>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Ticker</th><th>Entry</th><th>Exit</th><th>Underlying move</th>
+        <th>OLD approx</th><th>NEW real</th><th>Multiplier</th></tr></thead>
+      <tbody>{lc_rows}</tbody>
+    </table>
+    </div>
+    <div class="sub">JPM/ASML/TSLA/MU(2nd): understated 2.5-3.8x by the old model. MU(1st): underlying nearly flat (-1.2%) but the real option, held through 2 years of theta into a flat-to-down move, <b>expired completely worthless (-100%)</b> — a real outcome the old linear model could never represent. MSFT (still open) flips from ~0% under the old model to a real -21.7% loss under real pricing on a barely-negative underlying move — theta decay alone. Multiplier figures on near-zero underlying moves are mathematically noisy; read the absolute percentages.</div>
   </div>"""
 
     data_json = json.dumps(data)
@@ -264,6 +297,7 @@ def build_html(data: dict) -> str:
     <div class="sub">Click a column header to sort. "Kind" (equity/LEAP) shown in place of a live-account label — these are simulated backtest trades, not tied to a real brokerage account.</div>
   </div>
   {tiered_html}
+  {leap_correction_html}
 </div>
 
 <script>

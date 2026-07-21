@@ -1,43 +1,56 @@
 # STRATEGY.md
 
-**Version:** 3.0
-**Last updated:** July 20, 2026
+**Version:** 4.0
+**Last updated:** July 21, 2026
 **Owner:** Will Busch
-**Companion files:** `PLAN.md`, `GOAL.md`, `investor-one-pager-will-busch.md`, `portfolio-audit-2026-07-14.md`
+**Companion files:** `PLAN.md`, `GOAL.md`, `investor-one-pager-will-busch.md`, `portfolio-audit-2026-07-20.md`
 
 > **The one-line thesis:**
 > *I buy quality that's temporarily broken, and I hold until it retraces most of the way back.*
 >
-> Entry is fear, defined by price against its own recent history. Exit is a
-> structured retracement zone, not a fixed target. This is a **full-cycle
-> system**, not a bounce trade — holds run months, sometimes years.
+> Entry is fear, defined by price against its own recent history relative
+> to a market-cap-scaled bar. Exit is a structured retracement zone, not a
+> fixed target. This is a **full-cycle system**, not a bounce trade —
+> holds run months, sometimes years. LEAPs are priced as real options now,
+> not a linear approximation — they are the intended profit driver and the
+> single largest source of risk in the book, in that order.
 
 ---
 
-## ⚠️ STATUS: PLAUSIBLE, NOT PROVEN — RESEARCH REOPENED 2026-07-20
+## ⚠️ STATUS: PLAUSIBLE, NOT PROVEN — LOCKED CONFIGURATION, RESEARCH RE-CLOSED 2026-07-21
 
-Backtested across four research generations (2026-07-19/20). The universe
-run cleared SPY buy-and-hold and the SPY-idle-cash benchmark in a 12-month
-vault — but on **2 trades**, with a **100% win rate in every window of
-every cell tested**, which is the signature of survivorship bias (the
-universe is defined by names that are large-cap and profitable *today*),
-not of demonstrated skill. Every large winner traced to the Feb–Mar 2020
-COVID crash and recovery — one regime, one name set, selected after the
-fact. **No real capital is deployed on this system until a data source
-supporting point-in-time index membership and historical fundamentals
-becomes available and the backtest is re-run against it.**
+Backtested across five research generations (2026-07-19 through 21). This
+version locks the configuration: **daily entry / weekly exit is the only
+cell run** (no longer a matrix search), the **tiered drawdown gate is now
+official** (was experimental as of 2026-07-20), the **slot tiebreak is
+ratio-based** (drawdown ÷ that name's own gate threshold, not raw
+drawdown), and — the headline change — **LEAP P&L is now priced with a
+real Black-Scholes engine**, not the flat 0.55-delta approximation every
+prior version used. See Part 2 and Part 4 below for what changed and why;
+full run: `reports/fib_final_run.md`.
 
-**2026-07-20 — the tiered drawdown gate (below) reopened this formally-closed
-research phase.** Diagnosis: a flat 40% gate structurally locks a mega-cap
-out of ever qualifying outside a crash, which is WHY every winner was a
-2020 entry. The tiered gate loosens that for mid-caps. Result: trades now
-genuinely spread across 2021–2026, not just 2020 — real, verified
-improvement on that specific axis. But it is **not a clean win**: on the
-prior champion cell it LOWERED both trade count and total return, and
-vault sample sizes stayed just as thin (1–2 trades per cell). **This run
-IMPROVED the strategy's honesty about its own limits; it did NOT prove
-edge.** Full results: `reports/fib_tiered_gate.md`,
-`reports/fib_matrix.md`, `reports/fib_universe.md`.
+**What real LEAP pricing changed:** every existing LEAP trade was
+mispriced by the old model. JPM, ASML, TSLA, and one MU trade were
+understated 2.5–3.8x (the old model showed a *fraction* of the
+underlying's move; a real option shows a *multiple* of it — genuine
+leverage). A second MU trade — underlying nearly flat — went from
+"roughly breakeven" under the old model to **expired completely
+worthless (−100%)** under real pricing, a theta-driven outcome the old
+linear model could not represent at all. Full-span max drawdown rose to
+**62.8%** (vs 17–40% in every prior round) — traced directly to that same
+MU LEAP sitting open through the entire 2022 bear market at 33% of book
+before expiring worthless. **This is leverage cutting both ways, exactly
+as the design change intended to expose, not a bug.**
+
+Still: **no real capital is deployed on this system.** The data
+limitation is unchanged and now extends to three things instead of two:
+survivorship-biased universe membership, current-snapshot market-cap
+tiering, AND (new) sigma modeled from realized (not implied) volatility.
+Real LEAP pricing makes the P&L **honest**; it does not remove
+survivorship bias and does not prove edge. Genuine validation needs
+point-in-time membership, fundamentals, and market caps — Robinhood
+cannot provide any of the three. Research formally re-closes after this
+run (see `docs/PLAN.md`).
 
 ---
 
@@ -95,7 +108,7 @@ source — flagged as the top open item in `PLAN.md`.
 
 ## PART 2 — THE ENTRY (When We Buy)
 
-### The Drawdown Gate — TIERED (2026-07-20, EXPERIMENTAL, reopened research)
+### The Drawdown Gate — TIERED (✅ ADOPTED 2026-07-21, was experimental 2026-07-20)
 
 Price is below its own hybrid 2-year-high anchor by at least:
 
@@ -125,18 +138,17 @@ anchor/eligibility computation downstream is still strictly forward-only
 and lookahead-tested — only the threshold VALUE is a static input, not a
 time-varying lookahead.
 
-**Honest result (2026-07-20 ablation, `reports/fib_tiered_gate.md`):**
-trades now genuinely spread across 2021–2026 instead of clustering almost
-entirely in 2020 — real, verified improvement on the crash-concentration
-problem. But it is not a clean win: on the prior champion cell
-(daily/weekly) it LOWERED both trade count (12→9) and total return
-(+416%→+117%) via an emergent slot-competition effect (more eligible
-names now compete for the same 5-slot/2-per-week throttle, crowding out
-some of the flat gate's biggest winners) — verified as a real dynamic, not
-a bug, by direct per-ticker eligibility checks. **No single cell in the
-6-cell re-test delivers an unambiguous win over the flat-gate baseline.**
-This section documents the tiered gate as the CURRENTLY ACTIVE experiment,
-not a proven replacement.
+**History (2026-07-20 exploration, `reports/fib_tiered_gate.md`):** trades
+spread across 2021–2026 instead of clustering almost entirely in 2020 —
+real, verified improvement on the crash-concentration problem. On the
+former flat-gate champion cell specifically it LOWERED trade count and
+total return via an emergent slot-competition effect (more eligible names
+compete for the same throttle, crowding out some big winners) — verified
+as real, not a bug. No single cell in that 6-cell exploration delivered an
+unambiguous win. **Adopted anyway on 2026-07-21** as part of the locked
+configuration (alongside real LEAP pricing and the ratio tiebreak below) —
+the owner's call, not a data-driven "winner." `reports/fib_final_run.md`
+has the run under the full locked configuration.
 
 **The hybrid anchor:** a rolling 504-trading-day (2yr) high by default;
 when a name's true multi-year peak sits *outside* the 504-day window but
@@ -155,9 +167,9 @@ through the entry bar — never a future bar.
 ### The Trigger
 
 A **UT-Bot buy signal** (key=1, ATR period=10, Heikin Ashi off) on the
-entry timeframe. **Winning configuration from the universe run: daily
-entry timeframe.** (UT-Bot ported from the Pine v4 "UT Bot Alerts" script;
-see `screener/ut_bot.py`.)
+entry timeframe. **LOCKED 2026-07-21: daily entry / weekly exit is the
+only cell run** — no longer a timeframe matrix search. (UT-Bot ported from
+the Pine v4 "UT Bot Alerts" script; see `screener/ut_bot.py`.)
 
 *No RSI, no SMA(200), no weekly-lower-lows filter in the active entry
 logic — all replaced by the drawdown gate + UT-Bot trigger above.*
@@ -170,15 +182,24 @@ logic — all replaced by the drawdown gate + UT-Bot trigger above.*
 |---|---|
 | **Position sizing** | Single entry, one shot — **no tranche ladder** (demoted to an unused ablation variant; the RSI system's 3-tranche ATR ladder is retired with it) |
 | **Max position** | **15% of book** per name |
-| **Slots** | **5 equity + 1 LEAP** (6 total) |
+| **Slots** | **4 equity + 1 LEAP** (5 total) — CHANGED 2026-07-21, was 5+1. The 5th equity slot's capital is now the dedicated LEAP reserve, see Part 4a. |
 | **Max new positions per week** | **2** |
 | **Min cash floor** | **5%** |
+| **Full slots** | New candidates WAIT for a natural Fib exit — **no displacement of an existing position, ever** (reverted 2026-07-21 after being briefly considered). |
 
-### Slot-Selection Tiebreak
+### Slot-Selection Tiebreak — RATIO-BASED (CHANGED 2026-07-21)
 
 When more names clear the gate + trigger on the same day than there are
-free slots: **deepest drawdown first**, then **earliest gate-clear date**,
-then **alphabetical**. (Defined 2026-07-19 — was previously an unset rule.)
+free slots: rank by **drawdown ÷ that name's own tier threshold** — how
+far PAST its own gate it is, not the raw depth. A $600B name 32% down
+(1.28× its 25% gate) now beats an $80B name 44% down (1.10× its 40%
+gate), letting mega-caps win contested slots instead of always losing to
+small-caps that can post deeper raw drawdowns. Falls back to **earliest
+gate-clear date**, then **alphabetical** — unchanged. Verified working in
+the 2026-07-21 run, not just unit-tested: on 2025-01-06, AMAT ($421B) won
+a contested slot over CVS ($137B), HOOD ($90B), MDT ($106B), and QCOM
+($181B). (Old rule — deepest raw drawdown first, defined 2026-07-19 —
+retired; kept in code for reference.)
 
 ---
 
@@ -187,13 +208,104 @@ then **alphabetical**. (Defined 2026-07-19 — was previously an unset rule.)
 | Rule | Spec | Why |
 |---|---|---|
 | **Underlying** | **$500B+ market cap only** | Cannot go to zero. NFLX fails this. |
-| **Entry trigger** | Same drawdown gate (25%) + UT-Bot buy | The LEAP is the equity thesis with a multiplier. |
-| **Delta at entry** | **0.50–0.60** | Changed 2026-07-19 from the RSI-system's 0.70–0.80 deep-ITM rule — see override log. |
-| **Expiry** | **1.75 years minimum** at entry, **2 years preferred** | Time to be right; hard floor, not a target. |
+| **Entry trigger** | Same drawdown gate (25% tier) + UT-Bot buy | The LEAP is the equity thesis with a multiplier. |
+| **Delta at entry** | **0.55–0.65** (CHANGED 2026-07-21, was 0.50–0.60; midpoint used to solve the modeled strike is now 0.60, was 0.55) | Owner override — see override log. |
+| **Expiry** | **1.75 years minimum** at entry, **2 years preferred** (2.0yr also used as the modeled tenor T0 for strike-solving and theta decay) | Time to be right; hard floor, not a target. |
 | **Force-close-at-6-months** | **SUSPENDED for this strategy only.** LEAPs ride to the Fib exit or the modeled 2-year expiry. The global 6-month force-close rule (`config.yaml leap.force_close_months_to_expiry`) is untouched for any future strategy that doesn't explicitly suspend it. | The Fib exit is the only exit signal this strategy trusts; a time-based override would contradict it. |
-| **Sizing** | Delta-adjusted notional, single entry, **20% of book cap** | No tranche ladder on options — never average down. |
-| **Pricing model** | **0.55-delta static approximation** (midpoint of 0.50–0.60), ignoring theta and IV — **optimistic**. Documented limitation, not a bug: real historical option premiums exist for expired contracts but selecting *which* contract at each historical entry requires greeks anyway, so one consistent approximation beats a mixed model. | See `backtest/leap_pricing.py`. |
-| **Expired-worthless LEAPs** | **Cannot be modeled** — the delta-approximation has no strike/theta, so it structurally cannot produce a worthless expiry. Reported as N/A, a known limitation. | |
+| **Sizing** | Single entry, **33% of book cap** (CHANGED 2026-07-21, was 20%) — single-entry cap and total-sleeve cap are now IDENTICAL by design, since only ONE LEAP is ever held at a time (no stacking) | The LEAP is the intended profit driver — see Part 4a. |
+| **Pricing model** | **✅ Real Black-Scholes delta-curve engine (CHANGED 2026-07-21).** The flat 0.55-delta static approximation is RETIRED — see below. | See `backtest/leap_bs_pricing.py`. |
+
+### 4a. Real LEAP Pricing (2026-07-21 — retires the flat approximation)
+
+**The flat static-delta model is gone.** Every LEAP trade in the backtest
+was previously priced as `cost_basis + 0.55 × (underlying's dollar move)`
+— a straight line. That systematically UNDERSTATED LEAP returns: it made
+options look like a fraction of the underlying's move when a real option
+is a multiple of it, and it could never produce a worthless expiry no
+matter how far out of the money the position drifted.
+
+**The new model:** genuine Black-Scholes pricing, with strike (K) and
+volatility (σ) **frozen at entry** and only the underlying price (S) and
+remaining time (T) evolving day to day:
+- **σ** = the underlying's own trailing 252-day realized volatility as of
+  the entry signal bar — the standard proxy for implied vol when no
+  historical vol surface is available (this data source doesn't serve
+  one). Forward-only by construction (a rolling stat).
+- **K** is solved from the target delta (0.55–0.65 midpoint = 0.60) at
+  entry via closed-form delta inversion.
+- Position sizing is now **real contracts at a real premium** (dollars ÷
+  premium-per-contract, floored to whole contracts), not a delta-scaled
+  share-equivalent.
+
+This produces real convexity (percentage moves LARGER than the
+underlying's, not smaller), real theta decay, and — restored — a genuine
+possibility of **expiring worthless**. Verified in the 2026-07-21
+correction run (`reports/fib_final_run.md`): JPM/ASML/TSLA were
+understated 2.5–3.8× by the old model; one MU trade flipped from
+"roughly breakeven" to **expired completely worthless (−100%)** under
+real pricing, on an underlying that barely moved — pure theta decay the
+old model could never show.
+
+**Disclosed simplifications** (minor next to the core convexity fix): σ
+is *realized*, not *implied*, volatility, held constant for the trade's
+life rather than tracking a real IV surface; the risk-free rate is a
+constant 4% assumption (no historical yield curve is available either).
+Real historical option data (confirmed reachable for expired contracts —
+see the 2026-07-19 feasibility spike) was used as a **post-hoc validation
+check** against this model's output for the specific trades this backtest
+produced, not as the live pricing engine — the simulator cannot call
+Robinhood MCP tools mid-run (architecture constraint, see
+`scanner/refresh.py`), so it cannot know which contract to fetch before
+the simulation that decides which trades occur has already run.
+
+### 4b. Dedicated LEAP Reserve (2026-07-21, owner's model)
+
+The 33% LEAP allocation is **reserved capital**, not backfilled into a
+5th equity when no LEAP currently qualifies:
+
+- **LEAP held:** 1 LEAP (33%) + 4 equities (15% each = 60%) + ~7% cash.
+- **No LEAP qualifies:** 4 equities (60%) + the 33% sits as **cash**, dry
+  powder for the next qualifying mega-cap setup. It does NOT fund a 5th
+  or 6th equity position.
+
+Enforced by `backtest/constraints.py:check_leap_reserve` — while no LEAP
+is held, an equity entry may not leave cash below (33% reserve + 5%
+floor) of the book. Once a LEAP is held, its 33% is already deployed as a
+real position, not idle cash, so only the normal 5% floor applies.
+
+**Rationale (owner):** the LEAP is the intended profit driver; keep
+dedicated dry powder ready to strike a leveraged mega-cap bet the moment
+one qualifies, rather than being fully deployed in equities and forced to
+sell something to fund it. Consistent with the patient dip-buyer
+philosophy; avoids the forced-over-deployment the 2026-07-20 throttle
+ablation showed actively hurt returns.
+
+### 4c. Live Execution Only — the VOO Reserve (NOT modeled in the backtest)
+
+**This is a live cash-management rule, never simulated.** Idle capital —
+the 33% LEAP reserve AND the 5% floor — is held in **VOO, not literal
+cash**, when trading for real. A triggering setup sells VOO to fund the
+entry. Dry powder earns market returns while waiting instead of sitting
+idle.
+
+The backtest does not model this: the existing SPY-idle-cash benchmark
+already captures functionally identical behavior (idle funds earning the
+index), so building it into the simulator would duplicate logic without
+adding information.
+
+**The tradeoff (documented, not resolved):** VOO breathes with the
+market. In a downturn, the reserve is DOWN exactly when dip-buy setups
+are triggering — the trade becomes "sell a down index to buy a
+deeper-down quality name," which is acceptable by design, but it means
+the reserve is not a fixed-dollar floor. Size accordingly.
+
+### Expired-Worthless LEAPs
+
+**Now representable** (was "cannot be modeled" under the retired flat
+approximation — see Part 4a). A LEAP whose underlying stays flat or drops
+while held through its modeled 2-year tenor can and does expire at zero
+under the real pricing engine; the 2026-07-21 run produced exactly one
+such case (MU, entered 2021-10-21).
 
 ### The NFLX Lesson (retained from the RSI system — still true)
 
@@ -270,19 +382,24 @@ quantified cost of this design choice.
 
 | Control | Limit |
 |---|---|
-| Max positions | **6** (5 equity + 1 LEAP) |
+| Max positions | **5** (4 equity + 1 LEAP) — CHANGED 2026-07-21, was 6 (5+1) |
 | Max single equity position | **15%** |
-| Max LEAP sleeve (single entry, delta-adjusted notional) | **20%** |
+| Max LEAP sleeve (single entry, real option notional) | **33%** — CHANGED 2026-07-21, was 20% |
+| LEAP reserve when no LEAP held | **33% held as cash** (VOO live), not backfilled to equities — new 2026-07-21 |
 | Min cash | **5%** |
 | Tranche ladder | **Retired** (single entry only) |
 | Max new positions per week | **2** |
+| Full slots | **No displacement** — new candidates wait for a natural exit |
 | **🛑 ACCOUNT KILL SWITCH** | **−30% → HALT all new entries for 30 days** |
 
 ### Why the kill switch
 
-No stops on open losers + leverage (LEAP sleeve) + concentration (6 slots)
-= a real path to a very bad year. The halt doesn't force a sale — it stops
-new entries from digging the hole deeper while a position is frozen.
+No stops on open losers + leverage (LEAP sleeve, now REAL leverage via
+Black-Scholes pricing, not a linear approximation) + concentration (5
+slots, one of them a 33% single-name option position) = a real path to a
+very bad year — the 2026-07-21 run's 62.8% max drawdown is the concrete
+proof, not a hypothetical. The halt doesn't force a sale — it stops new
+entries from digging the hole deeper while a position is frozen.
 
 ---
 
@@ -340,6 +457,15 @@ since July 14.** Phase 0 ("fix the book") remains untouched — see
 | 2026-07-19 | LEAP force-close-at-6-months **suspended, strategy-scoped only** — LEAPs ride to the Fib exit or 2yr modeled expiry | RSI-system force-close rule (still active globally for any strategy that doesn't explicitly suspend it) |
 | 2026-07-19 | Slot-selection tiebreak defined: deepest drawdown → earliest gate-clear → alphabetical | (previously unset) |
 | 2026-07-20 | Equity exit floor: see the three-way ablation in `reports/` — winner promoted here once run completes | RSI-system Trigger 1/Trigger 2 exits |
+| 2026-07-20 | Tiered drawdown gate introduced (25%/30%/40% by market-cap tier) — EXPERIMENTAL | flat 40%/25% gate |
+| **2026-07-21** | **Tiered drawdown gate ADOPTED as official** — no longer experimental | flat 40%/25% gate (kept in code for reference) |
+| 2026-07-21 | Timeframe LOCKED to daily entry / weekly exit — no longer a matrix search | the 6-cell (and prior 7-cell) matrix searches |
+| 2026-07-21 | Slot tiebreak changed to RATIO-based (drawdown ÷ tier threshold) | the 2026-07-19 raw-deepest-drawdown-first rule |
+| 2026-07-21 | LEAP delta 0.50–0.60 → **0.55–0.65** | the 2026-07-19 override above |
+| 2026-07-21 | LEAP single-entry/sleeve cap 20%/25% → **33%/33%** (identical, since only 1 LEAP is ever held) | the 2026-07-15/07-19 overrides above |
+| 2026-07-21 | Equity slots 5 → **4**; the 5th slot's capital becomes the dedicated 33% LEAP reserve | the 2026-07-19 "5 equity + 1 LEAP" override |
+| **2026-07-21** | **🔴 LEAP PRICING REPLACED: flat 0.55-delta static approximation → real Black-Scholes delta-curve engine.** Every historical LEAP trade was mispriced by the old model (JPM/ASML/TSLA/one MU trade understated 2.5–3.8×; a second MU trade flips from "roughly breakeven" to expired completely worthless). Full-span max drawdown rose to 62.8% as a direct, traced result — leverage cutting both ways, not a bug. | `backtest/leap_pricing.py`'s flat approximation (kept in code for reference) |
+| 2026-07-21 | VOO reserve documented as a live-execution-only cash-management rule — never modeled in the backtest | (new rule, no prior equivalent) |
 
 **Known spec gap (2026-07-19, still open):** Strategy D (RSI-armed,
 volume-triggered) was reconstructed from a partial spec; two of its

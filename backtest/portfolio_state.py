@@ -71,10 +71,17 @@ class Position:
     ticker: str
     kind: str               # "equity" | "leap"
     tranches: list[Tranche] = field(default_factory=list)
-    last_price: float = float("nan")
-    # LEAP-only: static delta for the trade's life (delta-adjusted
-    # underlying-exposure model — see backtest/leap_pricing.py)
-    delta: float | None = None
+    last_price: float = float("nan")     # underlying price, all kinds
+    last_date: "pd.Timestamp | None" = None
+    # LEAP-only (2026-07-21, Black-Scholes delta-curve engine — see
+    # backtest/leap_bs_pricing.py). K and sigma are FROZEN at entry;
+    # `shares` on a LEAP tranche means CONTRACTS, and `price` on a LEAP
+    # tranche means PREMIUM PER CONTRACT (so cost_basis = contracts x
+    # premium falls out of the existing Tranche math unchanged).
+    strike: float | None = None
+    expiry_date: "pd.Timestamp | None" = None
+    sigma: float | None = None
+    delta: float | None = None   # retained only for old-approx comparison reporting
 
     @property
     def shares(self) -> float:
@@ -86,14 +93,14 @@ class Position:
 
     @property
     def market_value(self) -> float:
-        if self.kind == "leap" and self.delta is not None:
-            # Delta-adjusted underlying-exposure APPROXIMATION (the
-            # labeled fallback from backtest/leap_pricing.py): the LEAP's
-            # P&L = static delta x the P&L of an equivalent-notional share
-            # position. Understates option leverage and ignores theta/IV —
-            # every report row touching it is labeled accordingly.
-            share_pnl = self.shares * self.last_price - self.cost_basis
-            return self.cost_basis + self.delta * share_pnl
+        if self.kind == "leap" and self.strike is not None:
+            from backtest.leap_bs_pricing import CONTRACT_MULTIPLIER, bs_call_price
+            if self.last_date is not None and self.expiry_date is not None:
+                t_remaining = max((self.expiry_date - self.last_date).days / 365.25, 0.0)
+            else:
+                t_remaining = 0.0
+            premium = bs_call_price(self.last_price, self.strike, t_remaining, self.sigma)
+            return self.shares * premium * CONTRACT_MULTIPLIER
         return self.shares * self.last_price
 
     @property
@@ -116,6 +123,7 @@ class PortfolioState:
         for tkr, pos in self.positions.items():
             if tkr in prices:
                 pos.last_price = prices[tkr]
+                pos.last_date = date
         self.peak_equity = max(self.peak_equity, self.total_equity)
 
     @property
@@ -137,13 +145,18 @@ class PortfolioState:
     def week_key(date: pd.Timestamp) -> str:
         return str(pd.Timestamp(date).to_period("W-FRI"))
 
-    def open_or_add(self, date, ticker, kind, price, shares, delta=None):
+    def open_or_add(self, date, ticker, kind, price, shares, delta=None,
+                    strike=None, expiry_date=None, sigma=None, underlying_price=None):
         cost = price * shares
         self.cash.withdraw(date, cost, "entry", ticker)
         if ticker in self.positions:
             self.positions[ticker].tranches.append(Tranche(date, price, shares))
         else:
-            pos = Position(ticker, kind, [Tranche(date, price, shares)], price, delta)
+            # last_price/last_date seeded now so market_value is correct
+            # even before the first mark_to_market call this same bar.
+            last_price = underlying_price if underlying_price is not None else price
+            pos = Position(ticker, kind, [Tranche(date, price, shares)], last_price, date,
+                          strike, expiry_date, sigma, delta)
             self.positions[ticker] = pos
             wk = self.week_key(date)
             self.new_positions_by_week[wk] = self.new_positions_by_week.get(wk, 0) + 1

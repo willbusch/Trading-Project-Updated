@@ -55,7 +55,66 @@ for reference only, see STRATEGY.md Part 0). No further action needed.
 
 ---
 
-## RESEARCH PHASE REOPENED — 2026-07-20 (tiered drawdown gate)
+## RESEARCH PHASE RE-CLOSED — 2026-07-21 (real LEAP pricing + locked config)
+
+Final research pass. The dashboard surfaced that the +415% headline result
+was essentially one event — every backtest winner traced to a Feb-Mar 2020
+COVID entry, AND every LEAP trade was mispriced by the flat 0.55-delta
+approximation (understated 2.5-3.8x on winners; couldn't represent
+"expired worthless" at all). Fixed both, in priority order:
+
+1. **Real LEAP pricing** (backtest/leap_bs_pricing.py) — Black-Scholes,
+   strike+sigma frozen at entry (sigma = trailing realized vol, no
+   historical IV surface available), S and T evolve daily. Retires the
+   flat approximation entirely. Verified: JPM/ASML/TSLA/one MU trade
+   understated 2.5-3.8x by the old model; a second MU trade flips from
+   "roughly breakeven" to expired completely worthless (-100%) under real
+   pricing. Full-span max drawdown rose to 62.8% (was 17-40% every prior
+   round) — traced directly to that same MU LEAP sitting open through the
+   entire 2022 bear market at 33% of book. Leverage cutting both ways,
+   confirmed not a bug.
+2. **Tiered drawdown gate ADOPTED as official** (was experimental
+   2026-07-20) — 25%/30%/40% by market-cap tier.
+3. **Ratio-based tiebreak** (drawdown / tier threshold) replaces raw
+   deepest-drawdown-first — verified working in the actual run (AMAT
+   $421B won a contested slot over four smaller/harder-gated names).
+4. **Sizing changed**: 4 equity slots (was 5) + 1 LEAP at 33% (was 20%),
+   dedicated LEAP reserve model (33% held as cash, NOT backfilled to a
+   5th equity, when no LEAP qualifies) — enforced by a new constraint
+   check, `check_leap_reserve`.
+5. **Timeframe LOCKED** to daily entry / weekly exit — matrix search
+   retired, one configuration going forward.
+6. **VOO reserve** documented in STRATEGY.md as a live-execution-only
+   cash-management rule (idle capital held in VOO, sold to fund entries)
+   — explicitly NOT modeled in the backtest; the existing SPY-idle-cash
+   benchmark already captures the functionally identical behavior.
+
+Vault trade count: 2 (above the 1-2 range seen in every prior round, still
+too thin to call decisive). Full run: `reports/fib_final_run.md`. Dashboard
+regenerated with real-LEAP-priced results as primary
+(`reports/results_dashboard.html`).
+
+**Research formally re-closes.** The ceiling remains data: survivorship-
+biased universe, current-snapshot market-cap tiering, and now also
+realized-vol-as-IV-proxy — three simplifications, all disclosed, none
+removable without a data source Robinhood cannot provide (point-in-time
+membership + fundamentals + market caps). No further strategy iteration
+is planned without one.
+
+**PARKED for a future run (do not build without an explicit owner ask):**
+a lower reconciliation between the dashboard's fresh-re-simulation
+sensitivity and the report's window-sliced results was fixed for THIS
+run (dashboard now consumes the exact pickled report run rather than
+re-simulating) — but the underlying universe-snapshot-timing sensitivity
+itself (small drift in scanned market data between separate script
+invocations changes which trades fire, via slot competition) remains a
+structural fragility worth a real fix if this project continues:
+snapshotting the universe list once per research generation instead of
+re-scanning live each run would remove the sensitivity entirely.
+
+---
+
+## RESEARCH PHASE REOPENED — 2026-07-20 (tiered drawdown gate, superseded by the re-close above)
 
 The "closed" note directly below was accurate for less than a day. The
 dashboard surfaced a finding that demanded a re-open: every backtest

@@ -1,4 +1,91 @@
 ---
+## 2026-07-21 — EXECUTED (from chat): Real LEAP pricing + tiered gate adopted + tiebreak fix
+DID (priority order, all 3 done):
+T1 — REAL LEAP PRICING (backtest/leap_bs_pricing.py, new): retires the
+flat 0.55-delta static approximation entirely. Black-Scholes engine —
+strike (K) and volatility (sigma) FROZEN at entry, only underlying price
+(S) and remaining time (T) evolve day to day. sigma = the underlying's own
+trailing 252-day realized vol as of the entry SIGNAL bar (forward-only,
+no historical IV surface available from this data source). K solved from
+target delta (0.55-0.65 midpoint = 0.60) via closed-form inversion.
+Position sizing now real contracts at a real premium, not a delta-scaled
+share-equivalent. Wired into portfolio_state.Position (new strike/
+expiry_date/sigma fields, market_value now calls the BS engine) and
+fib_simulator.py's entry/exit fill logic. 8 new pricing tests incl. a
+convexity test (LEAP % move > underlying % move) and a lookahead test on
+realized_vol. Architecture note: real historical option data CANNOT drive
+the simulator live (MCP tools aren't callable mid-run — same constraint
+as scanner/refresh.py) so the BS engine is the actual pricing engine; real
+option data was used as a post-hoc validation layer for the trades this
+run produced, not the live engine.
+
+CORRECTION DEMONSTRATED (scripts/leap_pricing_correction.py, same entry/
+exit dates+prices as before, only the pricing model varies): JPM old
++28.8% -> new +196.8% (3.76x underlying's move). ASML +24.9% -> +143.0%
+(3.16x). TSLA +77.3% -> +440.1% (3.13x). MU(2nd) +49.9% -> +230.9%
+(2.55x). MU(1st): underlying nearly flat (-1.2%), old approx -0.6%, NEW
+REAL -100.0% -- EXPIRED WORTHLESS, a real outcome the old linear model
+could never represent. MSFT (still open): old ~0%, new -21.7% (theta
+decay on a barely-negative underlying move).
+
+T2 — SIZING + TIERED GATE + TIEBREAK + RESERVE + LOCK: LEAP delta 0.50-
+0.60 -> 0.55-0.65. LEAP single-entry/sleeve cap 20%/25% -> 33%/33%
+(identical by design, only 1 LEAP ever held). Equity slots 5 -> 4 (5th
+slot's capital is now the dedicated LEAP reserve). Tiered gate (25/30/40
+by market-cap tier) ADOPTED as official, no longer experimental. Ratio-
+based tiebreak (drawdown / tier threshold) replaces raw deepest-drawdown-
+first -- new check_leap_reserve constraint (33% reserved as cash, NOT
+backfilled to equities, while no LEAP held). Daily/weekly cell LOCKED
+(matrix search retired). No-displacement confirmed already-true (no
+eviction logic exists). VOO reserve documented in STRATEGY.md as live-
+execution-only, explicitly NOT modeled (SPY-idle-cash benchmark already
+captures the same behavior). 6 new tests (ratio tiebreak + LEAP reserve).
+
+T3 — RAN the locked config (daily/weekly, tiered gate, real LEAP pricing,
+new sizing/tiebreak) full-span + all windows. Leak-hunt passed (9-15%
+CAGR on meaningful windows; two thin-window CAGR spikes traced to n=2/3
+samples, consistent with every prior round). VAULT: 2 trades (above the
+1-2 range, still thin). MAX DRAWDOWN ROSE TO 62.8% (was 17-40% every
+prior round) -- traced directly, not assumed: the MU LEAP (33% of book)
+sat open through the entire 2022 bear market before expiring worthless in
+Oct 2023; peak $265,671 -> trough $98,923 exactly overlaps that window.
+Leverage cutting both ways, confirmed not a bug. Tiebreak verified working
+in the actual run (not just unit-tested): AMAT ($421B) won a contested
+slot over CVS/HOOD/MDT/QCOM (all smaller-cap, harder-gated) on 2025-01-06.
+Full report: reports/fib_final_run.md.
+
+Found + fixed a real consistency bug while building the dashboard: a
+fresh re-simulation gave different trade counts (10/0) than the report's
+window-sliced runs (7/2) -- traced to the known universe-snapshot-timing
+sensitivity (documented last session) COMPOUNDED by a real methodology
+mismatch (full-span-then-date-filter vs independently-simulated windows
+produce different trades even from identical data, since window-slicing
+restarts state at the boundary). Fixed by making the dashboard consume
+the exact pickled report run instead of re-deriving stats.
+
+Dashboard regenerated with real-LEAP-priced results as primary; new
+section 8 (LEAP Pricing Correction table, the headline finding); section
+7 relabeled ADOPTED (was EXPERIMENTAL); caveat banner updated to this
+run's verbatim honest framing. Sent to owner for visual check.
+
+STRATEGY.md rewritten to v4.0: LEAP pricing section rebuilt (4a real
+pricing / 4b dedicated reserve / 4c VOO live-execution rule), tiered gate
+marked ADOPTED, ratio tiebreak documented with the AMAT proof point, all
+sizing tables synced (Part 3, Part 6), 9 new override-log entries.
+PLAN.md: research RE-CLOSED (was reopened last session), with a parked
+note on the deeper universe-snapshot-timing fix (snapshot once per
+research generation instead of re-scanning live) if this project
+continues.
+
+89 tests green (14 new this session: 8 BS pricing tests incl. convexity +
+lookahead, 5 LEAP-reserve constraint tests, 1 ratio-tiebreak integration
+test — see tests/test_leap_bs_pricing.py, tests/test_leap_reserve.py,
+tests/test_ratio_tiebreak.py).
+
+LAST_COMMIT: 776fe272e1acec4eb4220f6d20f7bbf596eb27aa
+---
+
+---
 ## 2026-07-20 — HANDOFF
 LAST_COMMIT: 5912806
 SNAPSHOT: Tiered drawdown gate (25/30/40 by market-cap tier) implemented and re-tested across all 6 timeframe cells. Real improvement on trade year-spread (2021-2026, not just 2020) but NOT a clean win — lowered trade count/return on the former champion cell via a verified slot-competition effect. No cell beats the flat-gate baseline unambiguously. Dashboard regenerated with new section 7. 75 tests green.

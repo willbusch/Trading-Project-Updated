@@ -50,10 +50,13 @@ def gate_of(ticker, leap_tickers):
     return 0.25 if ticker in leap_tickers else 0.40
 
 
-# TIERED DRAWDOWN GATE (2026-07-20, owner-specified, not swept). Replaces
-# the flat 40%/25% gate. Only the $150B-$500B band actually changes
-# behavior vs the old gate_of() above — $500B+ names were already 25%
-# (auto-LEAP-tier) and sub-$150B names were already 40%.
+# TIERED DRAWDOWN GATE — ADOPTED 2026-07-21 as the official gate (was
+# EXPERIMENTAL through the 2026-07-20 reopened-research run). Replaces the
+# flat 40%/25% gate (gate_of() above, kept for reference/archival use
+# only). Only the $150B-$500B band actually changes behavior vs the old
+# flat gate — $500B+ names were already 25% (auto-LEAP-tier) and
+# sub-$150B names were already 40%. Breakpoints live in config.yaml
+# drawdown_gate.* (owner-specified, not swept).
 #
 # DATA LIMITATION (flagged per guardrail): market cap is CURRENT-snapshot
 # only — no point-in-time history exists from this data source, so a
@@ -62,12 +65,21 @@ def gate_of(ticker, leap_tickers):
 # itself. This is a proxy, not a lookahead: the anchor/eligibility
 # computation downstream is still strictly forward-only (tested), only
 # the THRESHOLD VALUE itself is a static, non-time-varying input.
-TIER_BREAKPOINTS = ((500e9, 0.25), (150e9, 0.30), (0, 0.40))
+_DEFAULT_TIER_BREAKPOINTS = ((500e9, 0.25), (150e9, 0.30), (0, 0.40))
 
 
-def gate_of_tiered(ticker: str, market_caps: dict) -> float:
+def gate_of_tiered(ticker: str, market_caps: dict, cfg: dict | None = None) -> float:
     mc = market_caps.get(ticker, 0)
-    for floor, threshold in TIER_BREAKPOINTS:
+    if cfg is not None and "drawdown_gate" in cfg:
+        dg = cfg["drawdown_gate"]
+        breakpoints = (
+            (dg["tier_500b_breakpoint"], dg["tier_500b_plus_pct"]),
+            (dg["tier_150b_breakpoint"], dg["tier_150b_500b_pct"]),
+            (0, dg["tier_under_150b_pct"]),
+        )
+    else:
+        breakpoints = _DEFAULT_TIER_BREAKPOINTS
+    for floor, threshold in breakpoints:
         if mc >= floor:
             return threshold
     return 0.40
@@ -83,7 +95,7 @@ def build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg,
     frames = {}
     for t in tickers:
         try:
-            threshold = (gate_of_tiered(t, market_caps) if market_caps is not None
+            threshold = (gate_of_tiered(t, market_caps, cfg) if market_caps is not None
                         else gate_of(t, leap_tickers))
             frames[t] = build_fib_frame(
                 t, threshold, entry_tf, exit_tf, cfg, use_hybrid=True,

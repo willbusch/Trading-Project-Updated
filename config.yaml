@@ -16,6 +16,22 @@ universe:
   price_min: 10                           # > $10
   avg_volume_min: 2_000_000               # > 2M shares/day
 
+drawdown_gate:
+  # TIERED (2026-07-20/21, owner-specified, ADOPTED 2026-07-21 as official
+  # — was EXPERIMENTAL through the 2026-07-20 reopened-research run).
+  # Replaces the flat 40%/25% gate entirely (archived in backtest/
+  # drawdown_gate.py's rolling_high/gate_of, no longer called by default).
+  # Required drawdown from the hybrid 2yr-high anchor, by market-cap tier
+  # (CURRENT market cap — no point-in-time data available, flagged proxy,
+  # same limitation as universe membership). No hard cap floor — smaller
+  # names simply need a deeper drawdown, never excluded by cap alone (the
+  # $10B quality-gate floor above still applies, separately, upstream).
+  tier_500b_plus_pct: 0.25
+  tier_150b_500b_pct: 0.30
+  tier_under_150b_pct: 0.40
+  tier_500b_breakpoint: 500_000_000_000
+  tier_150b_breakpoint: 150_000_000_000
+
 resampling:
   # STAGE 0
   bar_size_days: 3                        # 3 trading days per bar, non-overlapping
@@ -68,10 +84,12 @@ exit:
 
 sizing:
   # STAGE 2/3
-  max_slots: 6                            # 5 core + 1 flex
-  # CHANGED 2026-07-19 (owner override, A/B/C/D engine build "LOCKED
-  # DECISIONS"): 5 equity slots + 1 LEAP slot made explicit keys.
-  equity_slots: 5
+  # CHANGED 2026-07-21 (owner override, "Real LEAP Pricing + Tiered Gate +
+  # Tiebreak Fix"): 5 equity + 1 LEAP -> 4 equity + 1 LEAP. The 5th equity
+  # slot's capital is now the dedicated LEAP reserve (see leap.reserve_pct
+  # below) — max_slots is descriptive only, not separately enforced.
+  max_slots: 5                            # 4 equity + 1 LEAP
+  equity_slots: 4
   leap_slots: 1
   # CHANGED 2026-07-15 (owner override): 25% -> 20%. Applies to stocks AND
   # options — shares + LEAPs on same underlying = one bucket.
@@ -90,25 +108,38 @@ leap:
   # STAGE 2/3 (separate rule set from equities)
   market_cap_min: 500_000_000_000         # $500B+ underlying only
   # CHANGED 2026-07-19 (owner override, LOCKED DECISIONS): 0.70-0.80 ->
-  # 0.50-0.60. STRATEGY.md still says deep ITM 0.70-0.80; drift tracked in
-  # docs/PLAN.md override log.
-  delta_min: 0.50
-  delta_max: 0.60
+  # 0.50-0.60. CHANGED AGAIN 2026-07-21 (owner override): 0.50-0.60 ->
+  # 0.55-0.65 (midpoint used to solve the modeled strike -> 0.60, was 0.55).
+  # STRATEGY.md v2 said deep ITM 0.70-0.80; superseded, see STRATEGY.md v3.
+  delta_min: 0.55
+  delta_max: 0.65
   expiry_min_months: 18                   # at entry
-  force_close_months_to_expiry: 6         # regardless of P/L
+  force_close_months_to_expiry: 6         # regardless of P/L — SUSPENDED for
+                                           # the Fib strategy, see fib_* keys below
   iv_rank_skip_threshold: 60              # skip if IV rank > 60 -> buy shares instead
-  sleeve_cap_pct_of_book: 0.25            # total LEAP sleeve, delta-adjusted notional
-  # CHANGED 2026-07-15 (owner override): a single option entry caps at 20%
-  # of portfolio at time of purchase, flat, one entry, no tranche ladder
-  # (unchanged: NO_TRANCHE_LADDER rule below still applies).
-  single_entry_pct_of_book: 0.20
+  # CHANGED 2026-07-21 (owner override, "dedicated LEAP reserve" model):
+  # 25% -> 33%. Single-entry and total-sleeve caps are now IDENTICAL by
+  # design — only ONE LEAP at a time, hard cap, no stacking, so "single"
+  # and "total" collapse to the same number.
+  sleeve_cap_pct_of_book: 0.33            # total LEAP sleeve (== single_entry, only 1 LEAP ever held)
+  single_entry_pct_of_book: 0.33          # CHANGED 2026-07-21: 0.20 -> 0.33
   no_tranche_ladder: true                 # one entry, one exit — never average down an option
+  # DEDICATED RESERVE (2026-07-21, owner's model): this 33% is RESERVED
+  # capital, not backfilled into equities when no LEAP qualifies. See
+  # backtest/constraints.py check_leap_reserve and STRATEGY.md Part 4a.
+  # LIVE EXECUTION ONLY (never modeled in the backtest — the existing
+  # SPY-idle-cash benchmark already captures the functionally identical
+  # behavior): idle capital (this reserve + the 5% cash floor) is held in
+  # VOO, not literal cash, and sold to fund entries. See STRATEGY.md.
+  reserve_pct: 0.33
   # LATCHED-FIB STRATEGY (2026-07-19): entry rules for this strategy —
-  # 0.50-0.60 delta (already above), 1.75yr expiry hard floor / 2yr
-  # preferred. force_close_months_to_expiry (6, above) is SUSPENDED for
-  # this strategy only; LEAPs ride to the Fib exit or modeled expiry.
+  # delta already above, 1.75yr expiry hard floor / 2yr preferred.
+  # force_close_months_to_expiry (above) is SUSPENDED for this strategy
+  # only; LEAPs ride to the Fib exit or modeled expiry.
   fib_entry_expiry_min_years: 1.75        # never enter a LEAP under this
-  fib_modeled_expiry_years: 2.0           # "or expiry" exit horizon (preferred term)
+  fib_modeled_expiry_years: 2.0           # "or expiry" exit horizon (preferred term);
+                                           # ALSO the tenor T0 used to solve the modeled
+                                           # strike at entry (backtest/leap_bs_pricing.py)
 
 circuit_breakers:
   # STAGE 2/3

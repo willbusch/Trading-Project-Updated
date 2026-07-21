@@ -1,8 +1,10 @@
-"""Generate the JSON data the results dashboard reads. Re-runs the
-winning cell (daily/weekly, simple_09 exit) as ONE continuous full-span
-backtest — the ablation runs stored only window-sliced summary stats, not
-raw equity curves, so this reconstructs the curves the dashboard needs
-from the same tested modules (no reimplementation of signal logic).
+"""Generate the JSON data the results dashboard reads. Re-runs the LOCKED
+configuration (daily/weekly cell, tiered gate now official, ratio
+tiebreak, real Black-Scholes LEAP pricing, ADOPTED 2026-07-21) as ONE
+continuous full-span backtest — window-sliced ablation runs only store
+summary stats, not raw equity curves, so this reconstructs the curves the
+dashboard needs from the same tested modules (no reimplementation of
+signal logic).
 
 Run this after any backtest change to regenerate reports/dashboard_data.json,
 then re-run scripts/generate_dashboard.py to rebuild the HTML.
@@ -31,21 +33,33 @@ def main():
     cfg = load_config()
     tickers, leap_tickers, meta = load_universe()
     entry_tf, exit_tf = WINNING_CELL
-    print("building frames ...")
-    t0 = time.time()
-    frames = build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg)
-    print(f"  done in {time.time()-t0:.1f}s")
 
-    end = max(fetch_daily_bars(t).index.max() for t in tickers[:5])
-    start = pd.Timestamp("2018-01-02")
-    vault_start = end - pd.DateOffset(months=12)
+    # CONSISTENCY FIX (2026-07-21): re-simulating fresh here can pick a
+    # slightly different trade set than the written report, due to a
+    # known sensitivity — small drift in the live universe snapshot
+    # between separate script invocations changes slot-competition
+    # outcomes (documented in reports/fib_tiered_gate.md). To keep the
+    # dashboard's numbers IDENTICAL to reports/fib_final_run.md, the
+    # primary "plain" curve/trade-log/stats are loaded from that exact
+    # pickled run rather than re-simulated. Only the idle-cash-SPY
+    # comparison curve (visual only, not a reported stat) is re-run fresh.
+    final_run = pickle.load(open(
+        "/tmp/claude-0/-home-user-Trading-Project-Updated/"
+        "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/final_run_results.pkl",
+        "rb"))
+    res_plain = final_run["results"]["FULL SPAN"]["result"]
+    start, end = final_run["span"]
+    vault_start = final_run["vault_start"]
+
+    print("building frames (tiered gate, official) for the idle-cash comparison curve ...")
+    t0 = time.time()
+    frames = build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg,
+                                   market_caps=meta["market_caps"])
+    print(f"  done in {time.time()-t0:.1f}s")
 
     spy = fetch_daily_bars("SPY")["Close"]
     spy_ret = spy.pct_change()
 
-    res_plain = simulate_fib(frames, cfg, seed_cash=cfg["backtest"]["seed_cash"],
-                             cell=f"{entry_tf}/{exit_tf}", window_label="full",
-                             leap_tickers=leap_tickers, exit_variant=WINNING_VARIANT)
     res_spycash = simulate_fib(frames, cfg, seed_cash=cfg["backtest"]["seed_cash"],
                                cell=f"{entry_tf}/{exit_tf}", window_label="full",
                                leap_tickers=leap_tickers, exit_variant=WINNING_VARIANT,
@@ -54,30 +68,18 @@ def main():
     spy_span = spy.loc[start:end]
     spy_curve = (spy_span / spy_span.iloc[0]) * cfg["backtest"]["seed_cash"]
 
-    from backtest.fib_reporting import compute_trade_stats, benchmark_spy
-    from backtest.reporting import compute_drawdown_stats
+    from backtest.fib_reporting import benchmark_spy
 
-    windows = {
-        "pre_vault": (pd.Timestamp("1900-01-01"), vault_start),
-        "vault": (vault_start, pd.Timestamp("2100-01-01")),
+    # CONSISTENCY FIX: use the SAME independently-simulated window results
+    # reports/fib_final_run.md reports (final_run["results"][window_label]),
+    # not a post-hoc date-filter of the full-span trade list — window-sliced
+    # simulations restart state at the boundary and do NOT produce the same
+    # trade set as filtering a continuous full-span run by date. Mixing the
+    # two would silently disagree with the written report.
+    stats = {
+        "pre_vault": final_run["results"]["combined (pre-vault)"],
+        "vault": final_run["results"]["VAULT (last 12mo, tested once)"],
     }
-    stats = {}
-    for wlabel, (ws, we) in windows.items():
-        sub_curve = res_plain.equity_curve.loc[ws:we]
-        sub_trades = [t for t in res_plain.closed_trades if ws <= t.entry_date <= we]
-
-        class _R:
-            pass
-        r = _R()
-        r.closed_trades = sub_trades
-        r.open_trades = []
-        r.equity_curve = sub_curve
-        r.rejected_entries = []
-        r.stale_excluded = []
-        dd = compute_drawdown_stats(sub_curve) if len(sub_curve) > 1 else {
-            "total_return": None, "cagr": None, "max_drawdown": None}
-        trade = compute_trade_stats(r)
-        stats[wlabel] = {"trade": trade, "dd": dd}
 
     spy_bm = {
         "pre_vault": benchmark_spy(cfg, start, vault_start),
@@ -167,9 +169,19 @@ def main():
     except FileNotFoundError:
         print("no tiered results found, skipping that dashboard section")
 
+    leap_correction = None
+    try:
+        leap_correction = json.load(open(
+            "/tmp/claude-0/-home-user-Trading-Project-Updated/"
+            "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/leap_correction.json"))
+    except FileNotFoundError:
+        pass
+
     data = {
         "generated_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
         "cell": f"{entry_tf}/{exit_tf}", "exit_variant": WINNING_VARIANT,
+        "leap_pricing_label": "black_scholes_delta_curve",
+        "leap_correction": leap_correction,
         "vault_start": vault_start.strftime("%Y-%m-%d"),
         "span": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d")},
         "curves": {
