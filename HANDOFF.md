@@ -1,6 +1,6 @@
 ---
 ## 2026-07-22 — EXECUTED: Beat-SPY Package (A1-A8) + 12-cell grid + attribution — HONEST VERDICT: still no
-LAST_COMMIT: 5f30ecd (Part A code+tests; report/dashboard/docs commit follows this entry)
+LAST_COMMIT: 470ab43
 
 DID: implemented all 8 locked fixes (A1-A8) diagnosed from the 2026-07-21
 run's 62.8%-max-drawdown post-mortem, then ran a 12-cell grid (2 entry
