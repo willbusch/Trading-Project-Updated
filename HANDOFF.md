@@ -1,4 +1,62 @@
 ---
+## 2026-07-22 — EXECUTED: Beat-SPY Package (A1-A8) + 12-cell grid + attribution — HONEST VERDICT: still no
+LAST_COMMIT: 5f30ecd (Part A code+tests; report/dashboard/docs commit follows this entry)
+
+DID: implemented all 8 locked fixes (A1-A8) diagnosed from the 2026-07-21
+run's 62.8%-max-drawdown post-mortem, then ran a 12-cell grid (2 entry
+timeframes x 3 equity-sizing variants x 2 trailing mechanics) plus a
+7-step cumulative attribution ladder on the champion cell. Full report:
+`reports/beat_spy_package.md`.
+
+A1 sizing (30% LEAP/65% equities/5% floor) - config only. A2 replaced the
+flat $500B LEAP floor with a top-10-by-market-cap-PROXY rank at entry date
+(backtest/leap_topcap.py, implied-shares x historical-close) - confirmed
+MU never qualifies in any year; the 62.8%-drawdown MU LEAP does not recur.
+A3 reversed the 2026-07-21 "dedicated reserve, wall" model to spendable
+working capital in SPY. A4 added a slot-time recycling valve (>=365d held,
+underwater, better candidate waiting -> recycle; winners never touched).
+A5 tightens the LEAP exit floor 0.9->0.7 past 50% of modeled runway, no
+hard time-close. A6 narrowed the kill switch to LEAP-only (equity dip-buys
+pass through a halt). A7 retired the 1.618 hard exit for a trailing exit
+(ut_trail/pct_trail). A8 fixed the dashboard's SPY-curve truncation bug
+(all curves now reindexed to a shared date union before serializing).
+BONUS FIX found while building A4: the entry-fill loop iterated
+`sorted(pending_entries)` (alphabetical), silently discarding the
+2026-07-21 ratio-tiebreak's rank order - the "AMAT beat 4 smaller names"
+result may have been alphabetical luck, not the ratio rule. Fixed;
+regression test added. 31 new tests, full suite 120 passed before the grid
+ran.
+
+RESULT - HONEST VERDICT: **the package still does NOT beat SPY
+risk-adjusted.** Every one of the 12 tested cells runs 44.9%-48.9% max
+drawdown pre-vault (real progress vs 62.8%, but still ~2x SPY's 25.4%);
+same story in the vault (20.3% vs SPY's 9.1%). Raw returns are enormous
+(127%-1064% pre-vault) but the MANDATORY OVERFITTING GUARD caught it: the
+#1 cell beats #2 by only 9.7%, every cell's "vault expectancy" is a single
+closed trade (statistically meaningless), and the top-ranked cells'
+returns are concentrated in 2-3 LEAP trades (TSLA twice, META once) that
+landed inside two of the dataset's largest individual-stock rallies -
+flagged explicitly as likely lucky timing, not proven edge, per this
+project's own "too good to be true = leak-hunt it" discipline. A2 (top-
+10-cap LEAP eligibility) was overwhelmingly the load-bearing fix - the
+only attribution step that improved BOTH return and max drawdown together
+(theirs: 91.5%->1042.5% return, 54.9%->40.1% max DD). A4 (recycling)
+actually REDUCED return in this run - a real cost, not a free lunch. A5
+(decay exit) had zero measurable effect in this specific backtest.
+Dashboard regenerated with the champion cell as primary, verdict panel now
+shows return AND max-drawdown pills separately per window (was return-only
+before). STRATEGY.md (v5.0) and PLAN.md updated with the full override log
+and a new research-re-closed section.
+
+NEXT: research re-closes again on the same data ceiling (survivorship-
+biased universe, current-snapshot caps feeding the new top-10 proxy too,
+realized-vol-as-IV). The evidence-backed default remains: index, don't run
+this system with real capital, until a genuinely out-of-sample forward
+track record says otherwise. Phase 0 (fix the real book) and the ORCL
+average-down judgment call remain separately open from prior sessions.
+---
+
+---
 ## 2026-07-21 — HANDOFF
 LAST_COMMIT: 38f6504
 SNAPSHOT: Flat 0.55-delta LEAP approximation retired, replaced with a real Black-Scholes engine — every historical LEAP trade was mispriced (2.5-3.8x understated on winners; one MU trade flips to expired-worthless -100%). Full-span max drawdown rose to 62.8% (traced to that same MU LEAP), confirmed as real leverage risk, not a bug. Tiered gate adopted official, ratio tiebreak verified working in-run (AMAT beat 4 smaller names), sizing changed to 4 equity + 1 LEAP at 33%, daily/weekly locked. 89 tests green. Research formally re-closed.

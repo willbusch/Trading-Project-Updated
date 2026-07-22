@@ -12,12 +12,17 @@ DATA_PATH = "reports/dashboard_data.json"
 OUT_PATH = "reports/results_dashboard.html"
 
 CAVEAT_BANNER = (
-    "Still a survivorship-biased proxy universe with current-snapshot "
-    "market caps. Real LEAP pricing makes the P&L HONEST but does not "
-    "remove survivorship bias. Improves accuracy, does not prove edge. "
-    "Research re-closes after this run; genuine validation needs "
-    "point-in-time membership + fundamentals + market caps Robinhood "
-    "can't provide."
+    "STILL the survivorship-biased proxy universe with current-snapshot "
+    "market caps — top-10-by-cap, tiered gates, and reserve modeling all "
+    "lean on point-in-time data this project does not truly have. THE "
+    "HONEST VERDICT (2026-07-22 “Beat-SPY Package” run): this cell "
+    "does NOT beat SPY risk-adjusted — every tested cell runs roughly "
+    "DOUBLE SPY's max drawdown despite an enormous headline return, and the "
+    "mandatory overfitting guard flags the top-ranked cells as concentrated "
+    "in 2–3 large, plausibly lucky LEAP trades, not proven edge. A good "
+    "return number here is NECESSARY but NOT SUFFICIENT evidence — full "
+    "detail in reports/beat_spy_package.md. Do not let this number end the "
+    "skepticism."
 )
 
 
@@ -40,7 +45,21 @@ def build_html(data: dict) -> str:
     spy_va = data["spy_benchmark"]["vault"]
 
     beat_spy_vault = (va_d["total_return"] or -9) > (spy_va["total_return"] or 9)
+    # RISK-ADJUSTED verdict (2026-07-22): both return AND max drawdown must
+    # beat SPY, or it isn't a win — see reports/beat_spy_package.md.
+    beat_return_pv = (pv_d["total_return"] or -9) > (spy_pv["total_return"] or 9)
+    beat_dd_pv = (pv_d["max_drawdown"] or 9) < (spy_pv["max_drawdown"] or 9)
+    beat_return_va = (va_d["total_return"] or -9) > (spy_va["total_return"] or 9)
+    beat_dd_va = (va_d["max_drawdown"] or 9) < (spy_va["max_drawdown"] or 9)
+    beats_spy_risk_adjusted = beat_return_pv and beat_dd_pv and beat_return_va and beat_dd_va
     ec = data["exit_comparison"]
+    # The exit-ablation comparison table (section 3) and Gap section
+    # (section 4) document the 2026-07-20 PRE-1.618 exit-shape ablation
+    # (simple_05 / simple_09 / latch_v2) — a separate, still-valid question
+    # from A7's POST-1.618 trailing-exit change, so they reference that
+    # ablation's own winner, not today's champion `variant` (which may be
+    # "trail_ut"/"trail_pct20"/"trail_pct15" and isn't a key in `ec`).
+    gap_variant = "simple_09"
 
     def _trade_row(t):
         exit_price_str = f"${t['exit_price']:.2f}" if t['exit_price'] else "—"
@@ -62,8 +81,8 @@ def build_html(data: dict) -> str:
     trade_rows = "".join(_trade_row(t) for t in data["trade_log"])
 
     exit_rows = "".join(
-        f"<tr class='{'winner' if k == variant else ''}'>"
-        f"<td>{k}{' ⭐' if k == variant else ''}</td>"
+        f"<tr class='{'winner' if k == gap_variant else ''}'>"
+        f"<td>{k}{' ⭐' if k == gap_variant else ''}</td>"
         f"<td>{ec[k]['n_closed']}</td>"
         f"<td>{fmt_pct(ec[k]['win_rate'])}</td>"
         f"<td>{fmt_pct(ec[k]['expectancy_pct'])}</td>"
@@ -216,8 +235,8 @@ def build_html(data: dict) -> str:
 
 <div class="wrap">
   <h1>Latched-Fib Strategy — Backtest Results Dashboard</h1>
-  <div class="meta">Generated {data['generated_at']} · winning cell <b>{cell}</b> ·
-    equity exit <b>{variant}</b> · vault boundary {vault_start}</div>
+  <div class="meta">Generated {data['generated_at']} · #1-ranked cell (return÷maxDD) <b>{cell}</b> ·
+    equity sizing <b>{data.get('equity_sizing', '?')}</b> · trailing exit <b>{variant}</b> · vault boundary {vault_start}</div>
 
   <div class="banner">⚠️ {CAVEAT_BANNER}</div>
 
@@ -230,10 +249,23 @@ def build_html(data: dict) -> str:
   <div class="panel">
     <h2>2. Verdict Panel</h2>
     <div class="verdict">
-      <span class="pill {'yes' if beat_spy_vault else 'no'}">
-        {'✅ BEAT SPY IN VAULT' if beat_spy_vault else '❌ DID NOT BEAT SPY IN VAULT'}
+      <span class="pill {'yes' if beats_spy_risk_adjusted else 'no'}" style="font-size:1.05rem;">
+        {'✅ BEATS SPY RISK-ADJUSTED (return AND max DD, both windows)' if beats_spy_risk_adjusted else '❌ DOES NOT BEAT SPY RISK-ADJUSTED'}
+      </span>
+      <span class="pill {'yes' if beat_return_pv else 'no'}">
+        pre-vault return {'beats' if beat_return_pv else 'trails'} SPY
+      </span>
+      <span class="pill {'yes' if beat_dd_pv else 'no'}">
+        pre-vault max DD {'beats' if beat_dd_pv else 'WORSE than'} SPY
+      </span>
+      <span class="pill {'yes' if beat_return_va else 'no'}">
+        vault return {'beats' if beat_return_va else 'trails'} SPY
+      </span>
+      <span class="pill {'yes' if beat_dd_va else 'no'}">
+        vault max DD {'beats' if beat_dd_va else 'WORSE than'} SPY
       </span>
     </div>
+    <div class="sub" style="margin-top:8px;">Per the 2026-07-22 "Beat-SPY Package" run's own rule: BOTH return and max drawdown must beat SPY, in both windows, or it isn't a risk-adjusted win. The huge return number below is real; the drawdown number next to it is what actually decides the verdict. Full 7-question answer set, 12-cell ranking, and the mandatory overfitting guard: <code>reports/beat_spy_package.md</code>.</div>
     <h3 style="margin-top:18px;font-size:0.95rem;">Pre-vault</h3>
     <div class="grid">
       <div class="stat"><div class="label">Total Return</div><div class="value">{fmt_pct(pv_d['total_return'])}</div></div>
@@ -272,10 +304,10 @@ def build_html(data: dict) -> str:
   </div>
 
   <div class="panel">
-    <h2>4. The Gap — Winning Variant ({variant})</h2>
+    <h2>4. The Gap — Pre-1.618 Exit Shape ({gap_variant})</h2>
     <div class="grid">
-      <div class="stat"><div class="label">Gap Trades</div><div class="value">{ec[variant]['gap_trades']}</div></div>
-      <div class="stat"><div class="label">Total Give-back</div><div class="value">${ec[variant]['gap_giveback']:,.0f}</div></div>
+      <div class="stat"><div class="label">Gap Trades</div><div class="value">{ec[gap_variant]['gap_trades']}</div></div>
+      <div class="stat"><div class="label">Total Give-back</div><div class="value">${ec[gap_variant]['gap_giveback']:,.0f}</div></div>
     </div>
     <div class="sub">The Gap = trades that peaked above entry, never hit the 1.618 target, never triggered a zone exit, and closed at a loss or gave back most of their peak gain — the accepted cost of "no exit below the floor." Zero for the winning variant in this sample; it will not stay zero on a larger or less curated universe.</div>
   </div>

@@ -1,26 +1,28 @@
-"""Generate the JSON data the results dashboard reads. Re-runs the LOCKED
-configuration (daily/weekly cell, tiered gate now official, ratio
-tiebreak, real Black-Scholes LEAP pricing, ADOPTED 2026-07-21) as ONE
-continuous full-span backtest — window-sliced ablation runs only store
-summary stats, not raw equity curves, so this reconstructs the curves the
-dashboard needs from the same tested modules (no reimplementation of
-signal logic).
+"""Generate the JSON data the results dashboard reads. Primary curves/
+stats/trade-log now come from the 2026-07-22 "Beat-SPY Package" run — the
+12-cell grid's #1-ranked cell by return/maxDD (`3day / both / trail_ut`,
+full Part A: A2 top-10-cap LEAP eligibility, A3 spendable reserve, A4 slot
+recycling, A5 LEAP decay exit, A6 LEAP-only kill switch, A7 trailing exit)
+— consumed from the exact pickled grid/full-span run rather than
+re-simulated, same consistency discipline as every prior round. See
+reports/beat_spy_package.md for the full honest verdict: this cell does
+NOT beat SPY risk-adjusted despite the enormous headline return, and the
+mandatory overfitting guard flags it as concentration-driven, not proven
+edge — both facts are carried into the dashboard's caveat banner.
 
 Run this after any backtest change to regenerate reports/dashboard_data.json,
 then re-run scripts/generate_dashboard.py to rebuild the HTML.
 """
 import json
 import pickle
-import time
 
 import pandas as pd
 
-from backtest.fib_universe import build_universe_frames, load_universe
-from backtest.fib_simulator import simulate_fib
 from screener.data import fetch_daily_bars
 
-WINNING_CELL = ("daily", "weekly")
-WINNING_VARIANT = "simple_09"
+WINNING_CELL = ("3day", "weekly")
+WINNING_VARIANT = "trail_ut"
+WINNING_SIZING = "both"
 
 
 def _curve_to_json(curve: pd.Series) -> dict:
@@ -56,62 +58,43 @@ def _align_and_serialize_curves(curves: dict) -> dict:
     return out
 
 
+SCRATCH = ("/tmp/claude-0/-home-user-Trading-Project-Updated/"
+          "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad")
+
+
 def main():
-    from screener.config import load_config
-    cfg = load_config()
-    tickers, leap_tickers, meta = load_universe()
     entry_tf, exit_tf = WINNING_CELL
 
-    # CONSISTENCY FIX (2026-07-21): re-simulating fresh here can pick a
-    # slightly different trade set than the written report, due to a
-    # known sensitivity — small drift in the live universe snapshot
-    # between separate script invocations changes slot-competition
-    # outcomes (documented in reports/fib_tiered_gate.md). To keep the
-    # dashboard's numbers IDENTICAL to reports/fib_final_run.md, the
-    # primary "plain" curve/trade-log/stats are loaded from that exact
-    # pickled run rather than re-simulated. Only the idle-cash-SPY
-    # comparison curve (visual only, not a reported stat) is re-run fresh.
-    final_run = pickle.load(open(
-        "/tmp/claude-0/-home-user-Trading-Project-Updated/"
-        "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/final_run_results.pkl",
-        "rb"))
-    res_plain = final_run["results"]["FULL SPAN"]["result"]
-    start, end = final_run["span"]
-    vault_start = final_run["vault_start"]
+    # CONSISTENCY DISCIPLINE (established 2026-07-21, continued here):
+    # primary curves/stats/trade-log are loaded from the EXACT pickled
+    # Beat-SPY Package grid/full-span run (reports/beat_spy_package.md),
+    # not re-simulated — guarantees the dashboard and the written report
+    # always show identical numbers for the same run.
+    grid = pickle.load(open(f"{SCRATCH}/beat_spy_grid_results.pkl", "rb"))
+    fullspan = pickle.load(open(f"{SCRATCH}/champion_fullspan.pkl", "rb"))
+    res_plain = fullspan["res_plain"]
+    res_spycash = fullspan["res_full_spycash"]
+    start, end = grid["span"]
+    vault_start = grid["vault_start"]
 
-    print("building frames (tiered gate, official) for the idle-cash comparison curve ...")
-    t0 = time.time()
-    frames = build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg,
-                                   market_caps=meta["market_caps"])
-    print(f"  done in {time.time()-t0:.1f}s")
+    champion_key = (entry_tf, WINNING_SIZING, WINNING_VARIANT)
+    champ = grid["grid_results"][champion_key]
 
     spy = fetch_daily_bars("SPY")["Close"]
-    spy_ret = spy.pct_change()
-
-    res_spycash = simulate_fib(frames, cfg, seed_cash=cfg["backtest"]["seed_cash"],
-                               cell=f"{entry_tf}/{exit_tf}", window_label="full",
-                               leap_tickers=leap_tickers, exit_variant=WINNING_VARIANT,
-                               idle_cash_spy=spy_ret)
-
     spy_span = spy.loc[start:end]
-    spy_curve = (spy_span / spy_span.iloc[0]) * cfg["backtest"]["seed_cash"]
+    spy_curve = (spy_span / spy_span.iloc[0]) * 100_000.0
 
-    from backtest.fib_reporting import benchmark_spy
-
-    # CONSISTENCY FIX: use the SAME independently-simulated window results
-    # reports/fib_final_run.md reports (final_run["results"][window_label]),
-    # not a post-hoc date-filter of the full-span trade list — window-sliced
-    # simulations restart state at the boundary and do NOT produce the same
-    # trade set as filtering a continuous full-span run by date. Mixing the
-    # two would silently disagree with the written report.
+    # window-sliced stats come from the SAME grid run reports/beat_spy_package.md
+    # reports, not a post-hoc date-filter of the full-span trade list — see
+    # the 2026-07-21 consistency-fix note this pattern originates from.
     stats = {
-        "pre_vault": final_run["results"]["combined (pre-vault)"],
-        "vault": final_run["results"]["VAULT (last 12mo, tested once)"],
+        "pre_vault": {k: v for k, v in champ["combined (pre-vault)"].items() if k != "result"},
+        "vault": {k: v for k, v in champ["VAULT (last 12mo, tested once)"].items() if k != "result"},
     }
 
     spy_bm = {
-        "pre_vault": benchmark_spy(cfg, start, vault_start),
-        "vault": benchmark_spy(cfg, vault_start, end),
+        "pre_vault": grid["benchmarks"]["spy_prevault"],
+        "vault": grid["benchmarks"]["spy_vault"],
     }
 
     trade_log = []
@@ -129,12 +112,10 @@ def main():
         })
     trade_log.sort(key=lambda x: x["entry_date"])
 
-    # 3-way exit ablation + throttle, reused from the prior run (no
-    # re-simulation needed — same underlying data)
-    ablation = pickle.load(open(
-        "/tmp/claude-0/-home-user-Trading-Project-Updated/"
-        "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/final_ablation_results.pkl",
-        "rb"))
+    # 3-way exit ablation (2026-07-20, PRE-1.618 exit shape — still valid,
+    # independent of A7), reused from that prior run (no re-simulation
+    # needed — same underlying data)
+    ablation = pickle.load(open(f"{SCRATCH}/final_ablation_results.pkl", "rb"))
     exit_comparison = {}
     for v in ["simple_05", "simple_09", "latch_v2"]:
         d = ablation["exit_results"][(v, "combined (pre-vault)")]
@@ -152,14 +133,8 @@ def main():
     # included if that run's pickle exists.
     tiered_section = None
     try:
-        tiered = pickle.load(open(
-            "/tmp/claude-0/-home-user-Trading-Project-Updated/"
-            "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/tiered_results_full.pkl",
-            "rb"))
-        flat_fresh = pickle.load(open(
-            "/tmp/claude-0/-home-user-Trading-Project-Updated/"
-            "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/flat_baseline_fresh.pkl",
-            "rb"))
+        tiered = pickle.load(open(f"{SCRATCH}/tiered_results_full.pkl", "rb"))
+        flat_fresh = pickle.load(open(f"{SCRATCH}/flat_baseline_fresh.pkl", "rb"))
         TR = tiered["results"]
         tcells = [f"{e}/{x}" for e, x in tiered["cells"]]
         pv_w, va_w = "combined (pre-vault)", "VAULT (last 12mo, tested once)"
@@ -199,15 +174,14 @@ def main():
 
     leap_correction = None
     try:
-        leap_correction = json.load(open(
-            "/tmp/claude-0/-home-user-Trading-Project-Updated/"
-            "cea16de6-50ec-53c6-8ee4-cf32e7e300aa/scratchpad/leap_correction.json"))
+        leap_correction = json.load(open(f"{SCRATCH}/leap_correction.json"))
     except FileNotFoundError:
         pass
 
     data = {
         "generated_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
         "cell": f"{entry_tf}/{exit_tf}", "exit_variant": WINNING_VARIANT,
+        "equity_sizing": WINNING_SIZING,
         "leap_pricing_label": "black_scholes_delta_curve",
         "leap_correction": leap_correction,
         "vault_start": vault_start.strftime("%Y-%m-%d"),
@@ -222,7 +196,7 @@ def main():
         "trade_log": trade_log,
         "exit_comparison": exit_comparison,
         "tiered_gate": tiered_section,
-        "seed_cash": cfg["backtest"]["seed_cash"],
+        "seed_cash": 100_000,
     }
 
     out_path = "reports/dashboard_data.json"

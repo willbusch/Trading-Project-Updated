@@ -2,7 +2,7 @@
 
 **Project:** Trader-Resp — Drawdown-Gated Fibonacci Screener + Backtest
 **Owner:** Will Busch
-**Last updated:** July 20, 2026
+**Last updated:** July 22, 2026
 **Read alongside:** `STRATEGY.md` (v3.0 — Fib strategy is now official), `GOAL.md`, `CLAUDE-CODE-PROMPT.md`
 
 ---
@@ -52,6 +52,71 @@ STRATEGY.md; GOAL.md is a separate, smaller open item.
 parameters (`volume_avg_bars`, sweep range) are moot: Strategy D and the
 rest of the RSI-system A/B/C/D suite are formally retired (kept in code
 for reference only, see STRATEGY.md Part 0). No further action needed.
+
+---
+
+## RESEARCH PHASE RE-CLOSED AGAIN — 2026-07-22 ("Beat-SPY Package," honest verdict: still no)
+
+The 2026-07-21 run's headline (8.9% CAGR / 62.8% max drawdown, losing to
+SPY on both counts) was diagnosed and answered with an 8-part fix package
+(A1-A8) plus a 12-cell entry/sizing/trailing comparison grid. Full detail,
+7-question answer set, ranking table, overfitting guard, and cumulative
+attribution ladder: `reports/beat_spy_package.md`.
+
+**What got fixed, verified:**
+1. **A2 — LEAP eligibility replaced**: flat $500B floor (which let ~$80B-
+   cap 2021 MU qualify on today's snapshot) → top-10-by-market-cap-proxy,
+   RANKED, at entry date. MU confirmed never eligible under the new rule,
+   any year. The 62.8%-drawdown MU LEAP does not recur in any of the 12
+   cells. **This was the single most load-bearing fix** — the only step in
+   the attribution ladder that improved both return AND max drawdown
+   together (91.5%→1042.5% return, 54.9%→40.1% max DD).
+2. **A3 — LEAP reserve reversed** from a wall to spendable working capital
+   in SPY. Added return but WORSENED max drawdown (40.1%→47.5%) — a real
+   cost, not a free win.
+3. **A4 — slot-time recycling valve**, winners never touched. Fired 5-6
+   times pre-vault; actually REDUCED pre-vault return in this run
+   (1139.4%→881.8%) — the replacement trades didn't outperform the
+   recycled legacy names enough inside the window. Real tradeoff, logged.
+4. **A5 — LEAP decay-aware exit floor** (0.9→0.7 past 50% runway): zero
+   measurable effect in this specific backtest — no open LEAP happened to
+   cross both thresholds simultaneously. Not proven useless, just inert
+   here.
+5. **A6 — kill switch narrowed to LEAP-only**: unlocked 2 more trades,
+   pushed return back up (881.8%→1034.5%) at a small further drawdown
+   cost. Clear #2 fix.
+6. **A7 — 1.618 hard exit retired**, replaced by a trailing exit: modest
+   final lift (1034.5%→1064.2%), no change to trade count or max DD.
+7. **A8 — dashboard curve truncation bug fixed.**
+8. **Bonus fix**: found and fixed a real bug in the 2026-07-21 ratio
+   tiebreak — the fill loop iterated `sorted(pending_entries)`
+   (alphabetical), silently discarding the computed rank order. The
+   "AMAT beat 4 smaller candidates" result from that round may have been
+   alphabetical luck, not the ratio rule. Regression test added.
+
+**The honest verdict — does the package beat SPY risk-adjusted? NO.**
+Every one of the 12 tested cells runs 44.9%-48.9% max drawdown pre-vault
+(down from 62.8%, real progress) but that is still roughly DOUBLE SPY's
+25.4% over the same span — same story in the vault (20.3% vs SPY's 9.1%).
+Raw returns are enormous (127%-1064%) but the **mandatory overfitting
+guard caught it**: the #1-ranked cell beats #2 by only a 9.7% margin, every
+cell's "vault expectancy" is a single closed trade (statistically
+meaningless), and the top-ranked cells' returns are concentrated in 2-3
+LEAP trades (TSLA twice, META once) that happened to land inside two of
+the largest individual-stock rallies in this dataset's history — flagged
+explicitly as likely lucky timing, not proven edge, per this project's own
+"too good to be true = leak-hunt it" discipline. The `daily/diversify`
+cells (higher trade count, stable across grid dimensions) are the more
+defensible pick on robustness grounds — and still lose to SPY on drawdown.
+
+**Research re-closes again**, on the same data ceiling as every prior
+close: survivorship-biased universe, current-snapshot market-cap tiering
+(now also feeding the top-10-cap proxy), realized-vol-as-IV-proxy. A
+package that beats SPY in this backtest would still only be NECESSARY, not
+SUFFICIENT, evidence — this one doesn't even clear that bar. **The
+evidence-backed default remains: index, don't run this system with real
+capital, until a genuinely out-of-sample forward track record says
+otherwise.**
 
 ---
 
