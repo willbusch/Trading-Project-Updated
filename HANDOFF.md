@@ -1,6 +1,6 @@
 ---
 ## 2026-07-22 — EXECUTED: Exit/Entry analysis + underperformance valve + dashboard redesign
-LAST_COMMIT: <pending — this entry's commit>
+LAST_COMMIT: d0f9d9e
 
 DID: three parts, all on the EXISTING 12-cell grid data (only Part 2 ran
 new sims). Full report: reports/exit_entry_valve.md.
