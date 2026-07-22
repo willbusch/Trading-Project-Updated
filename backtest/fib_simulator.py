@@ -161,6 +161,12 @@ def simulate_fib(
                                           # past 50% of modeled runway to expiry
     slot_recycling: bool = False,        # A4 (2026-07-22): opportunity-cost valve
     equity_sizing_variant: str | None = None,  # B2 (2026-07-22): "diversify"|"deepen"|"both"
+    recycle_trigger: str = "underwater",  # 2026-07-22 valve v2: "underwater" (A4
+                                          # original) | "underperformance" (trails
+                                          # SPY by >= recycle_underperf_margin
+                                          # annualized over the position's hold window)
+    spy_close: "pd.Series | None" = None,  # SPY close LEVELS (not returns) — required
+                                          # only when recycle_trigger="underperformance"
 ) -> FibResult:
     slippage = cfg["backtest"]["slippage_pct"]
     seed_cash = cfg["backtest"]["seed_cash"] if seed_cash is None else seed_cash
@@ -395,15 +401,26 @@ def simulate_fib(
             )
         )
 
-        # A4 (2026-07-22): slot-time recycling valve. Only fires for the
-        # SINGLE best-ranked waiting EQUITY candidate that would otherwise
-        # be rejected because equity slots are full, and only recycles a
-        # held equity position that is ALL of: held >= min_hold_days,
-        # CURRENTLY below its entry price, and (implicitly) not the best
-        # candidate itself. Winners in profit are NEVER eligible — this is
-        # an opportunity-cost valve, not a stop-loss.
+        # slot-time recycling valve. Fires for the SINGLE best-ranked
+        # waiting EQUITY candidate that would otherwise be rejected because
+        # equity slots are full, freeing ONE held equity position that is
+        # held >= min_hold_days AND fails the eligibility test below. This
+        # is an opportunity-cost valve, not a stop-loss; the LEAP is never
+        # touched.
+        #
+        # Two triggers (2026-07-22 valve v2, owner-specified):
+        #   "underwater" (A4 original): position currently below its entry
+        #       price. FINDING: this targeted the wrong thing — the real
+        #       slot-blockers were mediocre WINNERS (e.g. UBS +49% over
+        #       ~1160d ~= 15%/yr), which this trigger never touches.
+        #   "underperformance" (v2): position's annualized return over its
+        #       OWN hold window trails SPY's annualized return over the
+        #       identical window by >= recycle_underperf_margin (5%). A
+        #       winner that BEATS SPY is never eligible; a mediocre winner
+        #       that lags SPY by >5%/yr now is.
         if slot_recycling and cfg.get("slot_recycling", {}).get("enabled", True):
             equity_limit = cfg["sizing"]["equity_slots"]
+            margin = cfg.get("slot_recycling", {}).get("recycle_underperf_margin", 0.05)
             if state.slots_used("equity") >= equity_limit:
                 for tkr, row in entry_candidates:
                     if tkr in state.positions or tkr in pending_entries:
@@ -420,11 +437,28 @@ def simulate_fib(
                         if (date - entry_date).days < min_hold_days:
                             continue
                         entry_price = pos.cost_basis / pos.shares if pos.shares else pos.last_price
-                        if pos.last_price >= entry_price:   # only underwater eligible; winners untouched
-                            continue
-                        recyclable.append((ptkr, pos.last_price / entry_price - 1.0, entry_date))
+                        pos_ret = pos.last_price / entry_price - 1.0
+                        if recycle_trigger == "underperformance":
+                            hold_years = max((date - entry_date).days / 365.25, 1e-9)
+                            pos_ann = (1.0 + pos_ret) ** (1.0 / hold_years) - 1.0
+                            if spy_close is None:
+                                continue
+                            spy_e = spy_close.asof(entry_date)
+                            spy_n = spy_close.asof(date)
+                            if not (spy_e and spy_e > 0 and spy_n and spy_n > 0):
+                                continue
+                            spy_ann = (spy_n / spy_e) ** (1.0 / hold_years) - 1.0
+                            gap = pos_ann - spy_ann     # negative = lagging SPY
+                            if gap > -margin:           # not lagging by the full margin -> keep
+                                continue
+                            recyclable.append((ptkr, gap, entry_date))
+                        else:  # "underwater"
+                            if pos.last_price >= entry_price:   # winners untouched
+                                continue
+                            recyclable.append((ptkr, pos_ret, entry_date))
                     if recyclable:
-                        recyclable.sort(key=lambda x: (x[1], x[2]))   # most underwater, then oldest
+                        # worst first (most underwater / most-lagging-SPY), then oldest
+                        recyclable.sort(key=lambda x: (x[1], x[2]))
                         worst_tkr = recyclable[0][0]
                         if worst_tkr not in pending_exits:
                             pending_exits[worst_tkr] = "slot_recycle_valve"

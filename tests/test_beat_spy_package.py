@@ -150,3 +150,66 @@ def test_slot_recycling_off_by_default_does_nothing():
     # the function-level toggle is what the attribution ladder controls.
     res = simulate_fib(frames, cfg, cell="test", leap_tickers=frozenset())
     assert len(res.recycle_events) == 0
+
+
+# ---- Valve v2 (2026-07-22): underperformance trigger ----
+
+def _spy_ramp(dates, start=100.0, end=160.0):
+    """A SPY close-LEVEL series ramping start->end across the window."""
+    return pd.Series(
+        [start + (end - start) * i / (len(dates) - 1) for i in range(len(dates))],
+        index=dates,
+    )
+
+
+def _uperf_cfg():
+    cfg = _base_cfg(equity_slots=1, leap_slots=0)
+    cfg["slot_recycling"] = {"enabled": True, "min_hold_days": 365,
+                             "recycle_underperf_margin": 0.05}
+    return cfg
+
+
+def test_underperformance_valve_recycles_a_mediocre_winner_that_lags_spy():
+    """The exact failure the owner named: a WINNER (above entry) that still
+    badly lags the index. The underwater trigger never touches it; the
+    underperformance trigger must."""
+    frames, dates = _recycling_frames(old_price_after_entry=110.0)  # OLD +10% winner
+    spy = _spy_ramp(dates, 100.0, 160.0)                            # SPY +60%
+    cfg = _uperf_cfg()
+    res = simulate_fib(frames, cfg, cell="test", leap_tickers=frozenset(),
+                       slot_recycling=True, recycle_trigger="underperformance", spy_close=spy)
+    assert len(res.recycle_events) >= 1
+    assert res.recycle_events[0][1] == "OLD"
+    assert "NEW" in {t.ticker for t in res.trades}
+
+
+def test_underwater_valve_does_NOT_recycle_the_same_mediocre_winner():
+    """Same scenario, underwater trigger — OLD is above entry, so the old
+    trigger leaves it in place and NEW never enters. This is the wrong-
+    target failure the v2 trigger exists to fix."""
+    frames, dates = _recycling_frames(old_price_after_entry=110.0)
+    cfg = _uperf_cfg()
+    res = simulate_fib(frames, cfg, cell="test", leap_tickers=frozenset(),
+                       slot_recycling=True, recycle_trigger="underwater")
+    assert len(res.recycle_events) == 0
+    assert "NEW" not in {t.ticker for t in res.trades}
+
+
+def test_underperformance_valve_never_touches_a_winner_that_beats_spy():
+    frames, dates = _recycling_frames(old_price_after_entry=200.0)  # OLD +100%
+    spy = _spy_ramp(dates, 100.0, 160.0)                            # SPY +60% -> OLD beats SPY
+    cfg = _uperf_cfg()
+    res = simulate_fib(frames, cfg, cell="test", leap_tickers=frozenset(),
+                       slot_recycling=True, recycle_trigger="underperformance", spy_close=spy)
+    assert len(res.recycle_events) == 0
+
+
+def test_underperformance_valve_churn_floor_keeps_a_position_lagging_by_less_than_margin():
+    """5% floor: a position trailing SPY by only a hair must NOT be
+    recycled (prevents churn in a raging bull)."""
+    frames, dates = _recycling_frames(old_price_after_entry=148.0)  # OLD +48%
+    spy = _spy_ramp(dates, 100.0, 150.0)                            # SPY +50% -> gap ~1%/yr
+    cfg = _uperf_cfg()
+    res = simulate_fib(frames, cfg, cell="test", leap_tickers=frozenset(),
+                       slot_recycling=True, recycle_trigger="underperformance", spy_close=spy)
+    assert len(res.recycle_events) == 0

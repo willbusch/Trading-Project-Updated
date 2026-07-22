@@ -1,4 +1,69 @@
 ---
+## 2026-07-22 — EXECUTED: Exit/Entry analysis + underperformance valve + dashboard redesign
+LAST_COMMIT: <pending — this entry's commit>
+
+DID: three parts, all on the EXISTING 12-cell grid data (only Part 2 ran
+new sims). Full report: reports/exit_entry_valve.md.
+
+PART 1 (no new sim — aggregated the existing grid):
+- 1a Trailing mechanic ut_trail vs pct_trail: essentially a WASH. pct
+  marginally ahead on average (517% vs 508% return, ret/DD 10.93 vs 10.70);
+  ut won only 2/6 pairs; biggest runners identical. The champion's ut_trail
+  win is one of the 2 lucky cells, not a mechanic edge.
+- 1b Entry timeframe daily vs 3-day: 3-day's higher average is an
+  INTERACTION with sizing, not a standalone edge (3-day wins with
+  deepen/both, daily wins with diversify; trade counts + win rates
+  near-equal). Low confidence 3-day is genuinely better.
+- 1c 0.5-0.9 dead zone: champion cell had ZERO 6mo+ stalls; pooled 6/215
+  equity trades (3%). Real in theory, rare in practice, doesn't bind the
+  winner. Diagnostic only, no rule changed.
+
+PART 2 (the ONE new mechanic test): underperformance-triggered valve —
+recycle a held equity trailing SPY by >=5% annualized over its own hold
+window (vs the old "underwater" trigger). Three-way on champion cell
+(3day/both/ut_trail), pre-vault:
+  no-valve       ret 1040.6% maxDD 47.5% ret/DD 21.91  0 recycles  9 trades
+  underwater     ret 1064.2% maxDD 48.2% ret/DD 22.07  6 recycles 17 trades
+  underperf(NEW) ret 1221.0% maxDD 47.2% ret/DD 25.89  3 recycles 13 trades
+The new valve WON on this cell and recycled the RIGHT targets (VZ +2.5% but
+lagging SPY +12% — a mediocre winner the underwater trigger can't see; plus
+RCL/NEM deep laggards). BUT two blockers, both reported plainly:
+  (1) It does NOT capture the Oct-Dec 2022 mega-caps it was built for.
+      META enters as a LEAP (Mar 2022); GOOG/GOOGL/AMZN/NVDA never enter.
+      Those names are top-10-cap LEAP-eligible -> they contend for the
+      SINGLE LEAP slot (held by the 2022 META LEAP), NOT equity slots. The
+      valve only frees equity slots and never touches the LEAP, so it
+      STRUCTURALLY cannot admit them. Fixing this needs LEAP-slot changes,
+      out of scope for this equity-only valve.
+  (2) Cached SPY history starts 2021-07 -> the trigger is BLIND to
+      pre-2021 (2020-vintage) holds, including the UBS/SCHW names the owner
+      complained about. Win is partial-coverage, not apples-to-apples with
+      underwater. FOLLOW-UP: ingest SPY back to 2018 to test properly.
+  VERDICT: PENDING OWNER ADOPTION, not promoted. Config default stays
+  "underwater". Code + 4 new tests live (recycle_trigger="underperformance").
+
+PART 3: dashboard REDESIGNED (reports/results_dashboard.html) — grouped by
+STRATEGY not chart type. 4 cards (no-valve / underwater / underperformance-
+WINNER / SPY), essential stats only + a Notes & Takeaways block per card
+(honest good AND bad), winner crowned by ret/DD with one-line reasoning,
+equity curves on a shared axis (SPY honestly starts 2021-07, no back-fill),
+Part 1 mechanic analysis, collapsible trade log + collapsed Archive of
+retired-generation research. Caveat banner prominent up top. 116KB (was
+191KB). generate_dashboard.py is now self-contained; the old two-step
+generate_dashboard_data.py was removed.
+
+Tests: 124 passing (added 4 underperformance-valve tests). Also this
+session earlier: shipped the SessionStart hook + scripts/run_backtest.py +
+run-backtest skill (env auto-setup + canonical runner).
+
+NEXT: owner reviews the redesigned dashboard + the valve verdict. If the
+underperformance valve is worth adopting, first ingest SPY back to 2018
+(so it can see 2020-vintage holds) and separately decide whether to fix the
+2022 mega-cap capture via LEAP-slot handling (a different, un-tested change).
+Phase 0 (fix the real book) still the highest-value untouched real-money item.
+---
+
+---
 ## 2026-07-22 — EXECUTED: Beat-SPY Package (A1-A8) + 12-cell grid + attribution — HONEST VERDICT: still no
 LAST_COMMIT: 470ab43
 

@@ -241,6 +241,14 @@ slot_recycling:
   # is currently full. Winners in profit are NEVER touched by this rule.
   min_hold_days: 365
   enabled: true
+  # VALVE v2 (2026-07-22, owner-specified test): the "underwater" trigger
+  # above failed its first test (it targets losers, but the real slot
+  # blockers were mediocre WINNERS lagging the index). Alternate trigger
+  # "underperformance" recycles a held equity that trails SPY by >= this
+  # margin, ANNUALIZED, over its own hold window. 5% floor prevents churn
+  # in a raging bull. Winners that BEAT SPY are never touched. Selected via
+  # simulate_fib(recycle_trigger="underperformance", spy_close=...).
+  recycle_underperf_margin: 0.05
 
 equity_trailing_exit:
   # A7 (2026-07-22, "Beat-SPY Package") — once an equity position first

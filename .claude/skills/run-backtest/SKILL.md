@@ -79,9 +79,9 @@ NECESSARY but NOT SUFFICIENT evidence of edge.
 
 ## Step 5 — Wire results through, don't re-derive
 
-- Dashboard: `python scripts/generate_dashboard_data.py` then
-  `python scripts/generate_dashboard.py` — both read the SAME pickles this
-  skill produced, so the dashboard and any written report always agree.
+- Dashboard: `python scripts/generate_dashboard.py` — self-contained, reads
+  the SAME pickles this skill produced, so the dashboard and any written
+  report always agree (no re-simulation).
 - Report/docs: update `reports/`, then `docs/STRATEGY.md` +
   `docs/PLAN.md` override logs, then hand off (the `handoff-to-chat` skill).
 
