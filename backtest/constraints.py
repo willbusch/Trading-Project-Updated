@@ -82,13 +82,21 @@ def check_cash_floor(state: PortfolioState, order: EntryOrder, cfg: dict):
 
 def check_leap_reserve(state: PortfolioState, order: EntryOrder, cfg: dict):
     """DEDICATED LEAP RESERVE (2026-07-21, owner's model): while no LEAP
-    position is currently held, `leap.reserve_pct` (33%) of the book is
+    position is currently held, `leap.reserve_pct` (30%) of the book is
     RESERVED capital, held back for the next qualifying mega-cap LEAP
     setup — it may NOT be spent on a 5th equity. Applies to EQUITY orders
     only; a LEAP order is what the reserve exists to fund. Once a LEAP IS
-    held, its 33% is already deployed as a real position (not idle cash),
-    so this check steps aside and the normal cash floor covers the rest."""
+    held, its 30% is already deployed as a real position (not idle cash),
+    so this check steps aside and the normal cash floor covers the rest.
+
+    REVERSED 2026-07-22 (owner override, A3 "Beat-SPY Package"): the owner
+    explicitly reversed this from "wall" to "spendable working capital" —
+    the reserve sits in SPY, mark-to-market, and equities MAY draw on it.
+    When `leap.reserve_spendable` is set, this check no-ops entirely for
+    equity orders (the normal cash_floor check below still applies)."""
     if order.kind != "equity":
+        return True, ""
+    if cfg.get("leap", {}).get("reserve_spendable"):
         return True, ""
     reserve_pct = cfg.get("leap", {}).get("reserve_pct")
     if reserve_pct is None:   # not configured (e.g. the retired A/B/C/D
@@ -121,7 +129,16 @@ def check_weekly_cap(state: PortfolioState, order: EntryOrder, cfg: dict):
 
 
 def check_kill_switch(state: PortfolioState, order: EntryOrder, cfg: dict):
+    """A6 (2026-07-22, owner override, "Beat-SPY Package"): the -30%
+    circuit breaker's TRIGGER is unchanged, but its SCOPE narrows when
+    `circuit_breakers.leap_only_halt` is set — a halt then blocks only
+    LEAP entries (and any sizing-up, which doesn't exist for LEAPs here
+    since no_tranche_ladder=true means every LEAP order IS a new entry);
+    equity dip-buys pass through uninterrupted. Without the flag, a halt
+    blocks everything (original 2026-07-21 behavior)."""
     if state.halted_until is not None and order.date < state.halted_until:
+        if cfg.get("circuit_breakers", {}).get("leap_only_halt") and order.kind != "leap":
+            return True, ""
         return False, f"kill_switch: entries halted until {state.halted_until.date()}"
     return True, ""
 

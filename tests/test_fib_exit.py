@@ -9,8 +9,10 @@ from backtest.drawdown_gate import (
 from backtest.fib_exit import (
     EquityLatchExit,
     FullLatchExitV2,
+    LeapDecayExit,
     LeapSimpleExit,
     SimpleFloorExit,
+    TrailingFibExit,
 )
 
 
@@ -233,6 +235,97 @@ def test_hybrid_anchor_is_forward_only():
     trunc, _ = hybrid_anchor_high(close.iloc[:cut])
     # anchors on the shared prefix must be identical
     pd.testing.assert_series_equal(full.iloc[:cut], trunc, check_names=False)
+
+
+def test_leap_decay_exit_uses_09_floor_before_50pct_runway():
+    m = LeapDecayExit(dip_low=0.0, two_yr_high=100.0)
+    assert m.step(85, ut_sell=True, age_frac=0.2) == (False, None)   # below 0.9, early
+    assert m.step(95, ut_sell=True, age_frac=0.2) == (True, "leap_decay_ut_sell_floor0.9")
+
+
+def test_leap_decay_exit_tightens_to_07_past_50pct_runway():
+    m = LeapDecayExit(dip_low=0.0, two_yr_high=100.0)
+    # at 75 the frac is 0.75 -> above the tightened 0.7 floor but below the
+    # old 0.9 floor: only the DECAY variant should exit here
+    assert m.step(75, ut_sell=True, age_frac=0.6) == (True, "leap_decay_ut_sell_floor0.7")
+
+
+def test_leap_decay_exit_still_holds_below_tightened_floor():
+    m = LeapDecayExit(dip_low=0.0, two_yr_high=100.0)
+    assert m.step(65, ut_sell=True, age_frac=0.9) == (False, None)   # below 0.7 even late
+
+
+def test_leap_decay_exit_1618_hard_exit_unaffected():
+    m = LeapDecayExit(dip_low=0.0, two_yr_high=100.0)
+    assert m.step(162, ut_sell=False, age_frac=0.99) == (True, "fib_1618_hard")
+
+
+def test_leap_decay_exit_no_time_based_force_close():
+    """Explicitly rejected by the owner: age_frac > 1.0 (past modeled
+    expiry) must NOT force an exit on its own — only a UT sell above the
+    (now-tightened) floor, or the 1.618 hard exit, ever closes it here."""
+    m = LeapDecayExit(dip_low=0.0, two_yr_high=100.0)
+    assert m.step(50, ut_sell=False, age_frac=1.5) == (False, None)
+
+
+def test_leap_simple_exit_accepts_and_ignores_age_frac():
+    """Backward-compat: the simulator passes age_frac to whichever LEAP
+    machine is active; LeapSimpleExit (A5 off) must accept and ignore it."""
+    m = LeapSimpleExit(dip_low=0.0, two_yr_high=100.0)
+    assert m.step(95, ut_sell=True, age_frac=0.99) == (True, "leap_ut_sell")
+
+
+def _trail(mechanic="ut_trail", pct=0.20):
+    return TrailingFibExit(dip_low=0.0, two_yr_high=100.0, mechanic=mechanic, pct_trail_pct=pct)
+
+
+def test_trailing_exit_below_1618_matches_simple_09():
+    m = _trail()
+    assert m.step(85, ut_sell=True) == (False, None)            # below 0.9
+    assert m.step(95, ut_sell=True) == (True, "trail_floor_ut_sell")
+
+
+def test_trailing_exit_1618_no_longer_hard_sells():
+    m = _trail()
+    assert m.step(165, ut_sell=False) == (False, None)          # touches 1.618, no hard exit
+    assert m.trailing
+
+
+def test_trailing_exit_ut_trail_mechanic_exits_on_next_ut_sell():
+    m = _trail(mechanic="ut_trail")
+    m.step(165, ut_sell=False)                                  # enters trailing
+    assert m.step(180, ut_sell=False) == (False, None)          # still climbing, no sell signal
+    assert m.step(175, ut_sell=True) == (True, "trail_ut_exit")
+
+
+def test_trailing_exit_pct_trail_exits_on_20pct_retracement_from_peak():
+    m = _trail(mechanic="pct_trail", pct=0.20)
+    m.step(165, ut_sell=False)          # peak=165
+    m.step(200, ut_sell=False)          # new peak=200
+    assert m.step(170, ut_sell=False) == (False, None)          # 15% off peak, not yet
+    assert m.step(159, ut_sell=False) == (True, "trail_pct_0.2_exit")  # 20.5% off peak=200
+
+
+def test_trailing_exit_lets_a_winner_run_past_old_hard_exit():
+    """The whole point of A7: HOOD/APP-style winners that used to get
+    force-sold at 1.618 keep climbing instead."""
+    m = _trail(mechanic="ut_trail")
+    path = [130, 150, 165, 200, 300, 400]   # keeps climbing well past 1.618 (161.8)
+    for p in path:
+        exit_, reason = m.step(p, ut_sell=False)
+        assert not exit_, f"unexpected exit at {p}: {reason}"
+    assert m.peak_price == 400
+
+
+def test_trailing_exit_peak_tracking_is_forward_only():
+    """LOOKAHEAD TEST for the new peak-price tracking: truncating the price
+    path fed to step() must reproduce identical decisions up to the
+    truncation point, same discipline as every other machine here."""
+    path = [130, 150, 165, 200, 190, 300, 250, 100]
+    full, trunc = _trail(mechanic="pct_trail", pct=0.15), _trail(mechanic="pct_trail", pct=0.15)
+    decisions_full = [full.step(p, ut_sell=False) for p in path]
+    decisions_trunc = [trunc.step(p, ut_sell=False) for p in path[:5]]
+    assert decisions_full[:5] == decisions_trunc
 
 
 def test_stale_anchor_detection():

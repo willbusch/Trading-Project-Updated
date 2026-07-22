@@ -28,6 +28,34 @@ def _curve_to_json(curve: pd.Series) -> dict:
            "values": [round(float(v), 2) for v in curve.values]}
 
 
+def _align_and_serialize_curves(curves: dict) -> dict:
+    """A8 fix (2026-07-22, "Beat-SPY Package"): the SPY benchmark curve
+    used to truncate mid-chart because all three series were keyed to ONE
+    shared `labels` array (the strategy curve's own dates) while each
+    dataset supplied only a bare `values` array — Chart.js pairs values
+    with labels POSITIONALLY, so any length/date mismatch between series
+    (different start dates, different trading-day sets) silently
+    misaligned or truncated whichever series was shorter.
+
+    Fix: reindex every curve onto ONE shared union-of-dates index BEFORE
+    serializing, forward-filling gaps (each curve is a daily
+    mark-to-market equity value, so carrying the last known value forward
+    across a missing date is the correct semantics, not a display hack).
+    After this, DATA.curves.<name>.dates is IDENTICAL across every series
+    — not just coincidentally equal-length — so keying all three Chart.js
+    datasets off the strategy curve's `dates` array (kept as-is in the
+    template) is now actually safe."""
+    common_index = pd.DatetimeIndex(
+        sorted(set().union(*[set(c.index) for c in curves.values()]))
+    )
+    out = {}
+    for name, curve in curves.items():
+        aligned = curve.reindex(common_index).ffill().bfill()
+        out[name] = {"dates": [d.strftime("%Y-%m-%d") for d in aligned.index],
+                     "values": [round(float(v), 2) for v in aligned.values]}
+    return out
+
+
 def main():
     from screener.config import load_config
     cfg = load_config()
@@ -184,11 +212,11 @@ def main():
         "leap_correction": leap_correction,
         "vault_start": vault_start.strftime("%Y-%m-%d"),
         "span": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d")},
-        "curves": {
-            "strategy": _curve_to_json(res_plain.equity_curve),
-            "strategy_spy_idle_cash": _curve_to_json(res_spycash.equity_curve),
-            "spy_buy_hold": _curve_to_json(spy_curve),
-        },
+        "curves": _align_and_serialize_curves({
+            "strategy": res_plain.equity_curve,
+            "strategy_spy_idle_cash": res_spycash.equity_curve,
+            "spy_buy_hold": spy_curve,
+        }),
         "stats": stats,
         "spy_benchmark": spy_bm,
         "trade_log": trade_log,

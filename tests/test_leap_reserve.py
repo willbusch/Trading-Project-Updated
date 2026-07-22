@@ -56,3 +56,29 @@ def test_reserve_check_leap_orders_never_blocked_by_this_rule():
     order = EntryOrder(D0, "MSFT", "leap", 33_000.0)
     ok, reason = check_leap_reserve(state, order, CFG)
     assert ok
+
+
+# ---- A3 (2026-07-22, "Beat-SPY Package"): reserve REVERSED to spendable ----
+
+CFG_SPENDABLE = {**CFG, "leap": {**CFG["leap"], "reserve_spendable": True}}
+
+
+def test_reserve_spendable_flag_lets_equities_draw_on_the_reserve():
+    """The exact case that used to be BLOCKED (test above,
+    test_equity_entry_blocked_below_reserve_plus_floor_when_no_leap_held)
+    must now be ALLOWED once reserve_spendable is set — the owner's
+    explicit reversal from 'wall' to 'working capital'."""
+    state = _state(cash=100_000.0)
+    order = EntryOrder(D0, "AAPL", "equity", 65_000.0)   # would have failed under CFG
+    ok, _ = check_leap_reserve(state, order, CFG_SPENDABLE)
+    assert ok
+
+
+def test_reserve_spendable_flag_still_leaves_cash_floor_check_to_its_own_rule():
+    """check_leap_reserve stepping aside doesn't mean unlimited spending —
+    check_cash_floor (a separate check) still applies; this test only
+    verifies check_leap_reserve itself no-ops, not the composed gate."""
+    state = _state(cash=100_000.0)
+    order = EntryOrder(D0, "AAPL", "equity", 99_999.0)
+    ok, _ = check_leap_reserve(state, order, CFG_SPENDABLE)
+    assert ok

@@ -86,12 +86,19 @@ def gate_of_tiered(ticker: str, market_caps: dict, cfg: dict | None = None) -> f
 
 
 def build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg,
-                          market_caps: dict | None = None):
+                          market_caps: dict | None = None,
+                          add_topcap_column: bool = False):
     """market_caps=None -> flat 40%/25% gate (gate_of), the original
     behavior. market_caps={ticker: cap} -> tiered gate (gate_of_tiered).
     Toggling this is the ONLY difference between the flat and tiered runs
     — everything else (quality gate, LEAP kind assignment, hybrid anchor,
-    UT trigger) is identical."""
+    UT trigger) is identical.
+
+    add_topcap_column=True (A2, 2026-07-22): also computes and merges a
+    `leap_eligible_topcap` boolean column into every frame — True where
+    that ticker ranks in the top leap.leap_topcap_n by the historical-cap
+    proxy on that date (backtest/leap_topcap.py). Requires market_caps.
+    """
     frames = {}
     for t in tickers:
         try:
@@ -102,6 +109,17 @@ def build_universe_frames(tickers, leap_tickers, entry_tf, exit_tf, cfg,
             )
         except Exception as e:                       # noqa: BLE001 - report coverage
             print(f"  SKIP {t}: {type(e).__name__} {e}")
+
+    if add_topcap_column:
+        from backtest.leap_topcap import top_n_by_cap_matrix
+        top_n = cfg.get("leap", {}).get("leap_topcap_n", 10)
+        top_matrix = top_n_by_cap_matrix(frames, market_caps or {}, top_n=top_n)
+        for t, f in frames.items():
+            col = (top_matrix[t].reindex(f.index).fillna(False)
+                  if t in top_matrix.columns
+                  else pd.Series(False, index=f.index))
+            f["leap_eligible_topcap"] = col
+
     return frames
 
 

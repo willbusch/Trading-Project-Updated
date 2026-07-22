@@ -96,7 +96,14 @@ sizing:
   # CHANGED AGAIN 2026-07-19 (owner override, LOCKED DECISIONS): 20% -> 15%
   # for equities. STRATEGY.md Part 6 still says 25%; doc drift tracked in
   # docs/PLAN.md override log.
-  max_position_pct_of_book: 0.15
+  # CHANGED AGAIN 2026-07-22 (owner override, A1 "Beat-SPY Package"):
+  # 15% -> 16.25%. Book is now 30% LEAP / 65% across 4 equities (~16.25%
+  # each) / 5% cash floor (in SPY, not idle) — see leap.* below for the
+  # matching 30% LEAP change. Position size is measured AT ENTRY ONLY: a
+  # winner growing past 16.25% of a (now larger) book is NOT a violation
+  # and is never trimmed — no trim/rebalance logic exists anywhere in this
+  # codebase, so this was already true and required no code change.
+  max_position_pct_of_book: 0.1625
   max_tranches_per_name: 3                # hard cap — but single-entry is now
                                            # PRIMARY; the 3-tranche ladder is a
                                            # toggleable ablation variant only
@@ -106,7 +113,18 @@ sizing:
 
 leap:
   # STAGE 2/3 (separate rule set from equities)
-  market_cap_min: 500_000_000_000         # $500B+ underlying only
+  # SUPERSEDED 2026-07-22 (owner override, A2 "Beat-SPY Package"): the flat
+  # $500B floor applied TODAY's market cap retroactively across a name's
+  # entire backtest history — this is exactly what let the MU LEAP enter
+  # in 2021 when MU was only ~$80B then (MU only crossed $500B years
+  # later). Replaced by RANK: LEAP-eligible = ticker is in the top 10 US
+  # companies by market cap AS OF THE ENTRY DATE (backtest.leap_topcap
+  # module), not a hardcoded name list and not a static dollar floor. This
+  # key is KEPT for reference/fallback only (e.g. old reports, the retired
+  # flat gate) — the simulator no longer reads it for LEAP eligibility
+  # when leap_topcap_eligibility=True is passed to simulate_fib.
+  market_cap_min: 500_000_000_000         # $500B+ underlying only (RETIRED, see above)
+  leap_topcap_n: 10                       # top-N by market-cap-proxy, A2
   # CHANGED 2026-07-19 (owner override, LOCKED DECISIONS): 0.70-0.80 ->
   # 0.50-0.60. CHANGED AGAIN 2026-07-21 (owner override): 0.50-0.60 ->
   # 0.55-0.65 (midpoint used to solve the modeled strike -> 0.60, was 0.55).
@@ -121,17 +139,21 @@ leap:
   # 25% -> 33%. Single-entry and total-sleeve caps are now IDENTICAL by
   # design — only ONE LEAP at a time, hard cap, no stacking, so "single"
   # and "total" collapse to the same number.
-  sleeve_cap_pct_of_book: 0.33            # total LEAP sleeve (== single_entry, only 1 LEAP ever held)
-  single_entry_pct_of_book: 0.33          # CHANGED 2026-07-21: 0.20 -> 0.33
+  # CHANGED AGAIN 2026-07-22 (owner override, A1 "Beat-SPY Package"):
+  # 33% -> 30% (book is now 30% LEAP / 65% equities / 5% cash floor).
+  sleeve_cap_pct_of_book: 0.30            # total LEAP sleeve (== single_entry, only 1 LEAP ever held)
+  single_entry_pct_of_book: 0.30          # CHANGED 2026-07-22: 0.33 -> 0.30
   no_tranche_ladder: true                 # one entry, one exit — never average down an option
-  # DEDICATED RESERVE (2026-07-21, owner's model): this 33% is RESERVED
-  # capital, not backfilled into equities when no LEAP qualifies. See
-  # backtest/constraints.py check_leap_reserve and STRATEGY.md Part 4a.
-  # LIVE EXECUTION ONLY (never modeled in the backtest — the existing
-  # SPY-idle-cash benchmark already captures the functionally identical
-  # behavior): idle capital (this reserve + the 5% cash floor) is held in
-  # VOO, not literal cash, and sold to fund entries. See STRATEGY.md.
-  reserve_pct: 0.33
+  # REVERSED 2026-07-22 (owner override, A3 "Beat-SPY Package"): this was
+  # a WALL (equities could not touch it) as of 2026-07-21; the owner has
+  # now explicitly REVERSED that — the reserve is WORKING CAPITAL, not a
+  # wall. All idle capital (this 30% when no LEAP is held, plus the 5%
+  # floor) sits in SPY, mark-to-market daily, and is spendable same-day to
+  # fund a qualifying equity entry. See backtest/constraints.py
+  # check_leap_reserve (now gated by reserve_spendable below) and
+  # STRATEGY.md override log for the explicit reversal record.
+  reserve_pct: 0.30
+  reserve_spendable: true                 # A3: reserve is spendable working capital, not a wall
   # LATCHED-FIB STRATEGY (2026-07-19): entry rules for this strategy —
   # delta already above, 1.75yr expiry hard floor / 2yr preferred.
   # force_close_months_to_expiry (above) is SUSPENDED for this strategy
@@ -140,12 +162,28 @@ leap:
   fib_modeled_expiry_years: 2.0           # "or expiry" exit horizon (preferred term);
                                            # ALSO the tenor T0 used to solve the modeled
                                            # strike at entry (backtest/leap_bs_pricing.py)
+  # A5 (2026-07-22, "Beat-SPY Package"): once a LEAP has burned >= 50% of
+  # its modeled runway to expiry, tighten the exit floor 0.9 -> 0.7 (any
+  # weekly UT sell in the 0.7-1.618 zone exits; below 0.7 always holds).
+  # NOT a hard time-based force-close (explicitly rejected by the owner —
+  # the position can still ride past 50% runway indefinitely if it never
+  # gets a UT sell signal above the tightened floor).
+  decay_tighten_at_frac: 0.5
+  decay_floor_before: 0.9
+  decay_floor_after: 0.7
 
 circuit_breakers:
   # STAGE 2/3
   max_new_positions_per_week: 2
-  account_drawdown_halt_pct: 0.30         # -30% -> halt new entries
+  account_drawdown_halt_pct: 0.30         # -30% trigger UNCHANGED (A6)
   halt_duration_days: 30
+  # A6 (2026-07-22, "Beat-SPY Package"): CHANGED — the -30% kill switch
+  # halted ALL new entries (equity + LEAP) as of 2026-07-21; the owner
+  # narrowed its SCOPE (not its trigger) to LEAP entries/sizing-ups only.
+  # Equity dip-buys now continue uninterrupted through a halt. This is
+  # exactly what blocked the Oct-Dec 2022 mega-cap entries under the old
+  # all-or-nothing halt. See backtest/constraints.py check_kill_switch.
+  leap_only_halt: true
 
 ut_bot:
   # BACKTEST COMPARISON (screener/ut_bot.py) — ported from the original
@@ -194,6 +232,25 @@ backtest:
   slippage_pct: 0.001                     # 0.1%
   split_half_boundary: "2024-01-01"       # 2021-2023 vs 2024-2026, reported separately
   vault_months: 6                         # most recent N months held out, tested once
+
+slot_recycling:
+  # A4 (2026-07-22, "Beat-SPY Package") — opportunity-cost valve, NOT a
+  # stop-loss. A held EQUITY position becomes eligible for forced recycle
+  # only if ALL of: held >= min_hold_days, currently below its entry
+  # price, AND a higher-ranked equity candidate is waiting for a slot that
+  # is currently full. Winners in profit are NEVER touched by this rule.
+  min_hold_days: 365
+  enabled: true
+
+equity_trailing_exit:
+  # A7 (2026-07-22, "Beat-SPY Package") — once an equity position first
+  # touches frac >= 1.618, it no longer hard-sells there; it switches to a
+  # trailing exit off the running peak PRICE (not peak frac). Everything
+  # below 1.618 is UNCHANGED (0.9 floor, weekly UT sell in the 0.9-1.618
+  # zone exits as before simple_09).
+  mechanic: "ut_trail"                    # "ut_trail" | "pct_trail" — B3 grid dimension
+  pct_trail_default: 0.20                 # 20% retracement from peak
+  pct_trail_alt: 0.15                     # 15% variant, tested if cheap to run
 
 data:
   # STAGE 0

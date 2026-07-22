@@ -143,3 +143,34 @@ def test_ledger_refuses_overdraw():
     state = _state(cash=100.0)
     with pytest.raises(LedgerError):
         state.cash.withdraw(D1, 200.0, "entry", "AAA")
+
+
+# ---- A6 (2026-07-22, "Beat-SPY Package"): kill switch narrowed to LEAP-only ----
+
+CFG_LEAP_ONLY_HALT = {**CFG, "circuit_breakers": {**CFG["circuit_breakers"],
+                                                 "leap_only_halt": True}}
+
+
+def test_kill_switch_leap_only_halt_still_blocks_leap():
+    state = _state()
+    state.halted_until = pd.Timestamp("2024-02-01")
+    ok, reason = check_kill_switch(
+        state, EntryOrder(D1, "MSFT", "leap", 1_000.0), CFG_LEAP_ONLY_HALT)
+    assert not ok and "kill_switch" in reason
+
+
+def test_kill_switch_leap_only_halt_lets_equity_dip_buys_through():
+    state = _state()
+    state.halted_until = pd.Timestamp("2024-02-01")
+    ok, _ = check_kill_switch(
+        state, EntryOrder(D1, "AAPL", "equity", 1_000.0), CFG_LEAP_ONLY_HALT)
+    assert ok
+
+
+def test_kill_switch_default_behavior_unchanged_without_the_flag():
+    """Without leap_only_halt set, a halt still blocks equities too — the
+    pre-2026-07-22 behavior, preserved as the default."""
+    state = _state()
+    state.halted_until = pd.Timestamp("2024-02-01")
+    ok, reason = check_kill_switch(state, EntryOrder(D1, "AAPL", "equity", 1_000.0), CFG)
+    assert not ok and "kill_switch" in reason

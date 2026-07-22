@@ -70,7 +70,10 @@ class LeapSimpleExit:
     def __post_init__(self):
         self.levels = fib_levels(self.dip_low, self.two_yr_high)
 
-    def step(self, price: float, ut_sell: bool):
+    def step(self, price: float, ut_sell: bool, age_frac: float = 0.0):
+        # age_frac accepted (and ignored) so the simulator can pass it
+        # uniformly to whichever LEAP exit machine (this one or
+        # LeapDecayExit) is active without branching on type.
         frac = price_fraction(price, self.dip_low, self.two_yr_high)
         if frac != frac:
             return False, None
@@ -104,6 +107,97 @@ class SimpleFloorExit:
             return True, "fib_1618_hard"
         if frac >= self.floor and ut_sell:
             return True, f"simple_{str(self.floor).replace('.', '')}_ut_sell"
+        return False, None
+
+
+@dataclass
+class LeapDecayExit:
+    """A5 (2026-07-22, "Beat-SPY Package"): same shape as LeapSimpleExit
+    (below floor hold · floor-1.618 any UT sell -> exit · 1.618 hard exit,
+    no latch) EXCEPT the floor tightens 0.9 -> 0.7 once the position has
+    burned >= `tighten_at_frac` of its modeled runway to expiry. This is a
+    risk-REDUCTION mechanic (a tighter floor makes an ordinary UT sell
+    fire sooner as the option ages), explicitly NOT a hard time-based
+    force-close — a LEAP that never gets a UT sell signal above the
+    tightened floor still rides to 1.618 or modeled expiry exactly as
+    before. `age_frac` (0.0-1.0+, elapsed/T0) is supplied by the simulator
+    each bar from the position's own entry/expiry dates — this class holds
+    no calendar state of its own, so it stays a pure step(price, ut_sell,
+    age_frac) function, same lookahead guarantee as every other machine
+    here (each call sees only the current bar's inputs)."""
+    dip_low: float
+    two_yr_high: float
+    tighten_at_frac: float = 0.5
+    floor_before: float = 0.9
+    floor_after: float = 0.7
+    levels: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.levels = fib_levels(self.dip_low, self.two_yr_high)
+
+    def step(self, price: float, ut_sell: bool, age_frac: float = 0.0):
+        frac = price_fraction(price, self.dip_low, self.two_yr_high)
+        if frac != frac:
+            return False, None
+        if frac >= 1.618:
+            return True, "fib_1618_hard"
+        floor = self.floor_after if age_frac >= self.tighten_at_frac else self.floor_before
+        if frac >= floor and ut_sell:
+            return True, f"leap_decay_ut_sell_floor{floor}"
+        return False, None
+
+
+@dataclass
+class TrailingFibExit:
+    """A7 (2026-07-22, "Beat-SPY Package"): equity exit. UNCHANGED below
+    1.618 — hold below `floor` (0.9), any weekly UT sell in the
+    floor-1.618 zone exits (identical to SimpleFloorExit(floor=0.9), aka
+    "simple_09"). CHANGED at 1.618: touching it no longer hard-sells.
+    Instead the position switches PERMANENTLY into trailing mode:
+      - mechanic="ut_trail": exit on the next UT-sell event while trailing
+        (same signal, just no longer capped at the 1.618 hard-exit).
+      - mechanic="pct_trail": exit once price retraces >= `pct_trail_pct`
+        from the RUNNING PEAK PRICE observed since entering trailing mode.
+    Peak-price tracking is forward-only by construction: `peak_price` is
+    updated once per `step()` call from that bar's price only, so it can
+    never reflect a future bar (lookahead test: truncating the price path
+    fed to step() must reproduce identical decisions up to the truncation
+    point, same discipline as every other machine in this file)."""
+    dip_low: float
+    two_yr_high: float
+    floor: float = 0.9
+    mechanic: str = "ut_trail"          # "ut_trail" | "pct_trail"
+    pct_trail_pct: float = 0.20
+    trailing: bool = False
+    peak_price: float = float("-inf")
+    levels: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.levels = fib_levels(self.dip_low, self.two_yr_high)
+
+    def step(self, price: float, ut_sell: bool):
+        frac = price_fraction(price, self.dip_low, self.two_yr_high)
+        if frac != frac:
+            return False, None
+
+        if not self.trailing:
+            if frac >= 1.618:
+                self.trailing = True
+                self.peak_price = price
+                # fall through to trailing logic below on this same bar
+            else:
+                if frac >= self.floor and ut_sell:
+                    return True, "trail_floor_ut_sell"
+                return False, None
+
+        self.peak_price = max(self.peak_price, price)
+        if self.mechanic == "ut_trail":
+            if ut_sell:
+                return True, "trail_ut_exit"
+            return False, None
+        retrace = 1.0 - (price / self.peak_price) if self.peak_price > 0 else 0.0
+        if retrace >= self.pct_trail_pct:
+            return True, f"trail_pct_{self.pct_trail_pct}_exit"
         return False, None
 
 
