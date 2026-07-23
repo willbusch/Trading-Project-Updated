@@ -1,15 +1,25 @@
 # Exit/Entry Analysis + Smarter Valve
 
-**Run date:** 2026-07-22
+**Run date:** 2026-07-22 (Part 2 CORRECTED 2026-07-22b after a SPY-data fix)
 **Source:** the existing 2026-07-22 12-cell grid (Part 1, no new sim) + one
 targeted valve test on the champion cell (Part 2). Champion cell =
 `3day / both / ut_trail`.
 
+> **🔴 CORRECTION (2026-07-22b): the first Part 2 run used SPY price history
+> that only reached back to 2021-07, which made the underperformance valve
+> BLIND to every position entered before mid-2021. SPY history has since been
+> extended back to 2018 (data fix), and Part 2 was re-run. The conclusion
+> REVERSED: the underperformance valve went from apparent winner to WORST of
+> the three. The corrected numbers are below; the original (broken-data)
+> numbers are struck through where they appeared. This is exactly why the
+> data fix was flagged as necessary before trusting the result.**
+
 > **This is STILL the survivorship-biased proxy universe with current-snapshot
-> market caps, and SPY price history only reaches back to 2021-07. Beating SPY
-> here is NECESSARY but NOT SUFFICIENT evidence of edge — the headline returns
-> rest on 2–3 large LEAP trades, and vault numbers are directional at best. Do
-> not let a good number end the skepticism.**
+> market caps. Beating SPY here is NECESSARY but NOT SUFFICIENT evidence of
+> edge — 87% of the winner's gains come from just 2 LEAP trades (one TSLA LEAP
+> alone = 60%); strip those and the strategy returns ~13%/yr (SPY-like) at
+> ~1.5× SPY's drawdown. Vault numbers are directional at best. Do not let a
+> good number end the skepticism.**
 
 ---
 
@@ -76,57 +86,59 @@ underwater AND better candidate waiting. New: held ≥12mo AND **trailing SPY by
 waiting. Winners that BEAT SPY are never touched. Everything else identical.
 LEAP is never touched.
 
-**Three-way test, champion cell (3day/both/ut_trail), pre-vault selection window:**
+**Three-way test, champion cell (3day/both/ut_trail), pre-vault window — CORRECTED
+(SPY history extended to 2018; idle cash now earns SPY from 2018, and the
+underperformance valve can finally see pre-2021 holds):**
 
-| Variant | Return | Max DD | Return÷DD | Recycles | Trades | Win rate |
-|---|---:|---:|---:|---:|---:|---:|
-| No valve | 1040.6% | 47.5% | 21.91 | 0 | 9 | 100% |
-| Underwater (old) | 1064.2% | 48.2% | 22.07 | 6 | 17 | 64.7% |
-| **Underperformance (new)** | **1221.0%** | **47.2%** | **25.89** | 3 | 13 | 84.6% |
+| Variant | Return | Max DD | Return÷DD | Sharpe | Calmar | Recycles | Trades |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **No valve** | **1434.4%** | **47.8%** | **30.01** | 1.03 | 0.91 | 0 | 9 |
+| Underwater | 1448.0% | 48.3% | 30.00 | 1.07 | 0.91 | 6 | 17 |
+| Underperformance | 1237.0% | 48.3% | 25.60 | 1.01 | 0.85 | 8 | 18 |
 
-**What each valve recycled:**
+*(Original broken-data numbers, for the record: no-valve 1040.6%/21.91,
+underwater 1064.2%/22.07, underperformance 1221.0%/**25.89 — apparent winner**.
+Those are superseded.)*
 
-- **Underwater** freed only small losers — MUFG (−4.6%), MMM (−3.8%), LYG
-  (−1.7%), BABA (−11.7%), NEM (−27%). It never touches a winner, so the
-  mediocre winners that were the actual slot-blockers stayed put.
-- **Underperformance** freed the right targets — **RCL** (−55.3% vs SPY −9.2%),
-  **NEM** (−10.3% vs SPY +29.0%), and crucially **VZ** (+2.5% but trailing SPY
-  +12.3%) — a *mediocre winner* the underwater trigger structurally cannot see.
+**The result reversed.** On corrected data the **underperformance valve is the
+WORST of the three** (return÷DD 25.60 vs ~30.0). No-valve and underwater are a
+statistical tie at the top; no-valve wins by a hair with the lowest max
+drawdown. **Recycling does not earn its keep** — turning it on (either trigger)
+does not beat leaving it off.
 
-### The two findings that override the headline number
+**Why the underperformance valve got worse once it could see everything:** with
+SPY back to 2018 it recycled 8 positions instead of 3, and several were fine
+holdings it evicted for lagging SPY — **UBS (+22.6% vs SPY +31.1%)** and **MMM
+(+20.7% vs SPY +28.8%)** — whose replacements then did worse (**WDC −31.6%**,
+**RCL −55.3%**). "Trailing SPY for a year" is a **bad eviction signal**: quality
+names routinely lag the index for a stretch and then recover, so forcing them
+out at the lag locks in the underperformance and pays for churn.
 
-**1. It does NOT capture the Oct–Dec 2022 mega-caps — the exact failure it was
-built for.** In all three variants, META enters as a **LEAP** on 2022-03-21;
-GOOG/GOOGL/AMZN/NVDA **never enter** in the Oct–Dec 2022 window (or at all as
-equities). Root cause: those names are top-10-by-cap **LEAP-eligible**, so when
-they clear the gate they contend for the **single LEAP slot** — which was
-already occupied by the 2022 META LEAP riding its ~2-year hold. The recycling
-valve only frees **equity** slots and explicitly never touches the LEAP, so it
-**structurally cannot admit them.** The owner's named failure is LEAP-slot
-contention, not equity-slot contention; this valve does not address it.
+### The finding that survives the correction
 
-**2. SPY data coverage compromises the test.** Cached SPY history starts
-**2021-07-01**. The underperformance trigger needs SPY's price at each
-position's entry date, so it is **blind to every position entered before
-mid-2021** — including the 2020-vintage holds (UBS, SCHW) the owner
-specifically complained about. Its comparison to the underwater trigger (which
-uses no SPY and sees the full history) is therefore **not apples-to-apples**,
-and its win is on partial coverage.
+**Neither valve captures the Oct–Dec 2022 mega-caps — the exact failure this
+work was meant to fix.** In all three variants META enters as a **LEAP**
+(2022-03-21); GOOG/GOOGL/AMZN/NVDA never enter. Those names are top-10-by-cap
+**LEAP-eligible**, so they contend for the **single LEAP slot** (occupied by the
+2022 META LEAP), not equity slots. The valve only frees **equity** slots and
+never touches the LEAP, so it **structurally cannot admit them.** The owner's
+named failure is LEAP-slot contention; no equity-slot valve can address it.
 
 ### Honest verdict
 
-The underperformance trigger is **better-targeted in principle** (it recycles
-lagging mediocre winners, which the underwater trigger cannot) and it improved
-this one cell on every headline metric. **But** it does not solve the specific
-problem it was built for, its evaluation is compromised by SPY data coverage,
-and — as with every result in this project — the returns still rest on 2–3
-large LEAP trades and one cell. **Recommendation: mark PENDING OWNER ADOPTION,
-not promoted.** Two things would have to be resolved first: (a) extend SPY
-history back to the full backtest span so the trigger can actually evaluate
-2020-vintage holds, and (b) recognise that fixing the 2022 mega-cap capture
-requires a change to **LEAP-slot** handling (e.g. more than one LEAP slot, or a
-LEAP-slot valve), which is out of scope for this equity-only mechanic and was
-not tested.
+**Do NOT adopt the underperformance valve.** Corrected for the SPY-data bug it
+is the worst of the three, because "lagging SPY" evicts good-enough holdings
+that recover. Recycling in general adds nothing here (no-valve ties underwater).
+The one thing the owner actually wanted — catching the 2022 mega-cap dips — is a
+**LEAP-slot** problem (needs more LEAP slots or a LEAP-slot valve), untested and
+out of scope for an equity-only mechanic. The config default stays "underwater"
+in name but the practical recommendation is **run no valve**; the code for both
+triggers remains available and tested.
+
+**Methodological note (the real lesson):** the first Part 2 run "found" a winner
+that was an artifact of the benchmark data starting too late. The fix (extend
+SPY to 2018) flipped the conclusion. Every SPY comparison in the whole project
+prior to this fix was measured over 2021-07+ only — now corrected.
 
 ---
 
@@ -138,6 +150,28 @@ not tested.
 3. ✅ Dashboard rebuilt: strategy cards, essential stats, Notes & Takeaways,
    winner crowned, archive collapsed, caveats prominent
    (`reports/results_dashboard.html`).
-4. ⏸️ STRATEGY.md: the valve test's winner is marked **pending owner
-   adoption**, not auto-promoted (see the override log entry).
+4. ✅ STRATEGY.md: after the data-fix correction, the underperformance valve
+   is logged as **tested and NOT adopted** (it's the worst of the three on
+   corrected data); no active rule changed. See the override log.
 5. ✅ HANDOFF.md updated.
+
+---
+
+## Financial-analyst read (2026-07-22b, full corrected window 2018–2025)
+
+| | CAGR | Max DD | Sharpe | Sortino | Calmar |
+|---|---:|---:|---:|---:|---:|
+| Strategy (no valve) | 43.7% | 47.8% | 1.03 | 1.50 | 0.91 |
+| SPY (now full window) | 11.9% | 34.1% | 0.47 | 0.57 | 0.35 |
+
+**Does it beat SPY?** On risk-adjusted ratios (Sharpe/Sortino/Calmar) — yes,
+even over the corrected full window. On absolute drawdown — no (48% vs 34%,
+~1.4×). **But the ratios are not trustworthy:** the strategy made 9 closed
+trades and **87% of gains come from 2 LEAP trades** (one TSLA LEAP = 60%). LEAP
+trades are **94% of net P&L**. Strip the top 2 and the strategy returns ~161%
+total over 7.5 years (~13%/yr) — **SPY-like, at ~1.5× the drawdown.** A 43% CAGR
+is the signature of leverage + luck on a handful of trades, not a repeatable
+edge. **Verdict: a well-built machine expressing a legitimate thesis, but this
+backtest proves "two leveraged mega-cap bets worked," not "the strategy has
+edge." The only real test left is forward (paper/small-live), not more
+backtesting.**

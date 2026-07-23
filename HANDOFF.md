@@ -1,4 +1,60 @@
 ---
+## 2026-07-22b — EXECUTED: SPY data fix + valve verdict REVERSED + dashboard legend/concentration
+LAST_COMMIT: <pending — this entry's commit>
+
+Triggered by the financial-analyst deep-dive on the dashboard, which caught
+two things the headline numbers hid: (1) SPY comparison was apples-to-oranges
+(strategy 2018-2025 vs SPY 2021-2025, because cached SPY only went back to
+2021-07); (2) the returns are almost entirely 2-3 LEAP trades.
+
+DID:
+- DATA FIX: re-ingested SPY via Robinhood get_equity_historicals back to
+  2017-12, merged into data_cache/SPY_daily.parquet (now 2017-12 -> 2026,
+  2166 bars). NOTE: data_cache is gitignored, so this lives on disk only —
+  a fresh container must re-ingest (run_backtest.py check will flag it).
+- RE-RAN Part 2 three-way valve test on corrected SPY. THE VERDICT REVERSED:
+    no-valve       ret 1434% maxDD 47.8% ret/DD 30.01  (winner, barely)
+    underwater     ret 1448% maxDD 48.3% ret/DD 30.00  (tie)
+    underperf      ret 1237% maxDD 48.3% ret/DD 25.60  (now WORST)
+  The underperformance valve's earlier "win" was an ARTIFACT of SPY history
+  starting 2021-07 (it was blind to pre-2021 holds). With full history it
+  over-recycles: evicts fine winners lagging SPY (UBS +23%, MMM +21%) for
+  replacements that did worse (WDC -32%, RCL -55%). "Lagging SPY for a year"
+  is a bad eviction signal. NOT ADOPTED. Recycling in general doesn't earn
+  its keep (no-valve ties underwater). STRATEGY.md override log corrected
+  (was "pending adoption" -> now "tested and not adopted").
+- ANALYST READ (corrected full window 2018-2025): strategy 43.7% CAGR /
+  47.8% maxDD / Sharpe 1.03 / Calmar 0.91 vs SPY 11.9% / 34.1% / 0.47 / 0.35.
+  Beats SPY risk-adjusted on Sharpe/Calmar BUT: 87% of gains = 2 LEAP trades
+  (one TSLA LEAP = 60%), LEAP = 94% of net P&L; ex-top-2 return ~161% total
+  (~13%/yr, SPY-like) at ~1.5x SPY drawdown. Edge is unproven — it's 2
+  leveraged bets that worked. Only real test left is forward, not backtest.
+- DASHBOARD rebuilt: added a plain-language LEGEND (core strategy + what each
+  card changes), a CONCENTRATION callout per card (top-2 % of gains, LEAP %,
+  ex-top-2 return), Sharpe/Calmar stats, and the corrected full-window SPY
+  (curve no longer starts mid-chart). Winner flipped to No valve.
+
+Tests: 124 passing. reports/exit_entry_valve.md corrected with the reversal
++ an analyst section.
+
+OPEN RECOMMENDATIONS for the owner (from the analyst read):
+1. Concentration is the whole ballgame — the result is 2 LEAP trades. Test
+   2-3 SMALLER LEAP slots instead of 1x30% to kill the single-point-of-failure.
+2. Stress-test the LEAP pricing (realized-vol-as-IV, flat 4% rate) on
+   META/TSLA at +/-20-30% IV — the 2 trades driving everything are the most
+   model-dependent.
+3. The 2022 mega-cap capture is a LEAP-SLOT problem (needs more LEAP slots /
+   a LEAP-slot valve), not equity — no equity valve can fix it.
+4. Backtesting is exhausted on this data; forward paper/small-live is the
+   only thing that resolves edge-vs-luck.
+5. Phase 0 (fix the real book) still the highest-value untouched real-money item.
+
+NEXT: owner picks a direction from the above. Awaiting answers to 5 analyst
+questions (drawdown tolerance; diversify the LEAP sleeve?; goal = beat-SPY
+vs leveraged-upside; capital/horizon; which follow-up to build first).
+---
+
+---
 ## 2026-07-22 — EXECUTED: Exit/Entry analysis + underperformance valve + dashboard redesign
 LAST_COMMIT: d0f9d9e
 
