@@ -1,4 +1,11 @@
 ---
+## 2026-07-22 — HANDOFF (chat sync marker)
+LAST_COMMIT: 0765b58
+SNAPSHOT: One drawdown-gated Fibonacci strategy. Best config = champion cell (3day entry / weekly exit / "both" sizing / trailing exit), NO recycling valve. Corrected full-window (2018-2025): 43.7% CAGR / 47.8% maxDD / Sharpe 1.03 vs SPY 11.9% / 34.1% / 0.47. Honest verdict: beats SPY risk-adjusted BUT 87% of gains = 2 LEAP trades; edge unproven. SPY data fixed back to 2018 this session (reversed the valve verdict). 3 productivity skills shipped (hook, runner, run-backtest). 124 tests green.
+NEXT: owner answers the 5 analyst questions (drawdown tolerance; 1 big LEAP vs 2-3 smaller; goal beat-SPY vs leveraged-upside; capital/horizon; which follow-up first) to pick direction. Phase 0 (fix the real book) still the top untouched real-money item.
+---
+
+---
 ## 2026-07-22b — EXECUTED: SPY data fix + valve verdict REVERSED + dashboard legend/concentration
 LAST_COMMIT: 77054a31953ed51a666211389fcbfdcec679eb1d
 
