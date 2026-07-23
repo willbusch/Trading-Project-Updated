@@ -1,6 +1,6 @@
 ---
 ## 2026-07-22b — EXECUTED: SPY data fix + valve verdict REVERSED + dashboard legend/concentration
-LAST_COMMIT: <pending — this entry's commit>
+LAST_COMMIT: 77054a31953ed51a666211389fcbfdcec679eb1d
 
 Triggered by the financial-analyst deep-dive on the dashboard, which caught
 two things the headline numbers hid: (1) SPY comparison was apples-to-oranges
