@@ -6,3 +6,6 @@ data_cache/
 portfolio.yaml
 # real account holdings — never committed
 data/live_positions_snapshot.json
+
+# generated trader profile — embeds real holdings, same policy as portfolio.yaml
+docs/TRADER-PROFILE.md
